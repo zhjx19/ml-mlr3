@@ -44,6 +44,8 @@ train_task = task$clone(deep = TRUE)$filter(split$train)
 
 **自检**：如果你在写 `$predict(task, row_ids = split$test)` 且用户未授权 → 立刻停下！
 
+> **注意（references 一致性）**：`references/` 中部分示例（如 `advanced-workflows.md` 的 `at$predict(task, row_ids = split$test)`）展示的是「**获授权后的最终评估**」写法，不代表开发期可用；照抄任何含 `split$test` 的代码前，必须先获用户授权。
+
 ### 红线 2：R6 引用语义
 
 mlr3 核心对象是 R6。`$select()`、`$filter()`、`$param_set$values` 等会**原地修改对象**。
