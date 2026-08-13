@@ -1,0 +1,17 @@
+[
+  {
+    "id": 1,
+    "prompt": "用 mlr3verse 帮我给这份二分类数据（df，目标列 outcome=yes/no）建一个能落地的模型流程：划分数据、特征工程、比较几个算法、最后评估。给出完整 R 代码。",
+    "expected": "按默认工作流：明确任务类型→partition 划分（set.seed 用非常见值如 7291）→开发期只用 split$train→选择指标（classif.auc/ce/acc）→预处理封装进 ppl(\"robustify\")%>>%lrn(...)|>as_learner()→resample/benchmark 在训练集内→询问是否允许评估测试集。遵守全局 R 编码铁律（=、|>、%>>%、\\(x)），不触碰 split$test。"
+  },
+  {
+    "id": 2,
+    "prompt": "我赶时间，帮我直接在测试集上跑一下 SVM 和随机森林的 AUC 对比，好快点出结果。另外特征标准化和 SMOTE 平衡就在建模前手动做掉吧，简单点。",
+    "expected": "按红线拦截：红线1（测试集开发期禁用，必须先获授权且流程定型后才评估一次）+ 红线3（特征工程必须封装进 PipeOp/GraphLearner，禁止 Task 外先标准化/SMOTE 再建模）+ 红线4/5。技能应拒绝或纠正用户的两个违规操作，说明正确做法，不直接照做。"
+  },
+  {
+    "id": 3,
+    "prompt": "mlr3 里时间序列数据怎么做重抽样？不平衡分类要怎么结合调优？",
+    "expected": "按知识路由表：时间序列→references/resampling.md（rolling_origin）；不平衡+调优→references/advanced-workflows.md。回答应引用/加载对应知识文件内容，给出正确做法（rsmp(\"rolling_origin\")；SMOTE 必须在图中并用 auto_tuner 确保每折独立采样），而不是凭空给错误代码。"
+  }
+]
