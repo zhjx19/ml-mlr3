@@ -229,6 +229,8 @@ GraphLearner 一旦创建，就按普通学习器一样使用，**天然防数�
 
 用 `ppl("branch")` + `to_tune(...)` 让调优器自动选择最优预处理路径和最优学习器。分支选择参数是 `ParamFct`，直接在 learner 参数集上赋 `to_tune()` 即可（等价写法：用 `ps()` + `tune()` 显式声明搜索空间，见 `references/advanced-workflows.md` §2.2）：
 
+**缩写来源**：`pos()` = `mlr3pipelines::pos`（特征位置选择器）、`lrns()` = `mlr3::lrns`（批量构造学习器列表）、`gunion()` = `mlr3pipelines::gunion`（图并行合并）。
+
 ```r
 # 两个分支：预处理分支（nop/pca/yeojohnson）+ 学习器分支（rpart/kknn）
 # 注意：yeojohnson 分支需要 R 包 bestNormalize，未安装时请去掉该分支
