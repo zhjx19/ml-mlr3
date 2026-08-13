@@ -152,6 +152,8 @@ rr$aggregate(measures)
 
 ## ppl("robustify") 默认预处理管线
 
+**依赖包提示（防"运行即报错"）**：示例用到的模型/算子对应 R 包——`classif.glmnet`→`glmnet`、`classif.ranger`→`ranger`、`classif.kknn`→`kknn`、`po("smote")`→`smotefamily`、`yeojohnson` 分支→`bestNormalize`。运行前先确认已安装（缺则 `install.packages(...)`）；未安装的模型/分支改用可用替代（如未装 bestNormalize 就去掉 yeojohnson 分支）。
+
 一键稳健预处理的 `ppl("robustify")` 生成一个**含 14 个 PipeOp 的非线性 DAG**（非简单线性流），覆盖大多数缺失值插补和因子编码场景。按执行顺序的核心节点：
 
 1. `removeconstants_prerobustify` — 删除常数特征
