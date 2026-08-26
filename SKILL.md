@@ -1,5 +1,5 @@
 ---
-name: mlr3verse
+name: ml-mlr3
 description: 使用 R mlr3verse 框架进行表格数据机器学习建模。当用户需要构建预测模型、比较算法、调优超参数、做特征工程或特征选择，且提到 mlr3、mlr3pipelines、mlr3tuning、mlr3fselect、GraphLearner、PipeOp、auto_tuner、auto_fselector 等关键词时使用。
 ---
 
@@ -152,7 +152,7 @@ rr$aggregate(measures)
 
 ## ppl("robustify") 默认预处理管线
 
-**依赖包提示（防"运行即报错"）**：示例用到的模型/算子对应 R 包——`classif.glmnet`→`glmnet`、`classif.ranger`→`ranger`、`classif.kknn`→`kknn`、`po("smote")`→`smotefamily`、`yeojohnson` 分支→`bestNormalize`。运行前先确认已安装（缺则 `install.packages(...)`）；未安装的模型/分支改用可用替代（如未装 bestNormalize 就去掉 yeojohnson 分支）。
+**依赖包提示（防"运行即报错"）**：示例用到的模型/算子对应 R 包——`classif.glmnet`→`glmnet`、`classif.ranger`→`ranger`、`classif.kknn`→`kknn`、`classif.svm`→`e1071`（mlr3verse 默认附带，但其 `cost`/`gamma` 是条件参数，见「调优：auto_tuner」陷阱说明）、`po("smote")`→`smotefamily`、`yeojohnson` 分支→`bestNormalize`。运行前先确认已安装（缺则 `install.packages(...)`）；未安装的模型/分支改用可用替代（如未装 bestNormalize 就去掉 yeojohnson 分支）。
 
 一键稳健预处理的 `ppl("robustify")` 生成一个**含 14 个 PipeOp 的非线性 DAG**（非简单线性流），覆盖大多数缺失值插补和因子编码场景。按执行顺序的核心节点：
 
@@ -264,8 +264,12 @@ glrn$param_set$add(
 
 ## 调优：auto_tuner
 
+> **classif.svm 条件参数陷阱（必读）**：`cost` / `gamma` 是条件参数——`cost` 依赖 `type == "C-classification"`，`gamma` 依赖 `kernel ∈ {polynomial, radial, sigmoid}`。对它们 `to_tune()` 前**必须显式设置 `type` 与 `kernel`**，否则报 `Assertion on 'xs' failed: cost can only be set if type == C-classification...`。
+
 ```r
 learner = lrn("classif.svm",
+  type   = "C-classification",          # 必须显式设置（cost 的前置条件）
+  kernel = "radial",                     # 必须显式设置（gamma 的前置条件）
   cost   = to_tune(1e-5, 1e5, logscale = TRUE),
   gamma  = to_tune(1e-5, 1e1, logscale = TRUE),
   predict_type = "prob"
@@ -397,3 +401,4 @@ skill.md 保持精简；遇到以下具体需求时，读取对应知识文件�
 - [ ] 对复杂 GraphLearner 是否利用了 `ppl("branch")` 分支路由调参？
 - [ ] 不平衡处理（SMOTE 等）是否封装在图中并用 `auto_tuner` 确保每折独立采样？
 - [ ] 代码是否遵守全局 R 编码铁律（`=`、`|>`/`%>>%`、`\(x)`、`.by`）？
+- [ ] 示例代码改动后运行 `scripts/verify_examples.R`，5 个骨架全 PASS？
