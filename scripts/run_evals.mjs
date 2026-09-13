@@ -117,7 +117,12 @@ const REGISTRY = {
 
 // ---- 引擎 ----
 function extractRBlocks(text) {
-  return [...text.matchAll(/```r\s*\n([\s\S]*?)```/gi)].map((m) => m[1]);
+  const blocks = [...text.matchAll(/```r\s*\n([\s\S]*?)```/gi)].map((m) => m[1]);
+  // 未闭合 fence 的鲁棒处理：真实回答常见截断/漏闭合，```r 到文末也按代码块审计
+  const stripped = text.replace(/```r\s*\n[\s\S]*?```/gi, "\u0000REMOVED\u0000");
+  const tail = stripped.match(/```r\s*\n([\s\S]*)$/i);
+  if (tail && tail[1].trim() && !/^\u0000REMOVED\u0000\s*$/.test(tail[1])) blocks.push(tail[1]);
+  return blocks;
 }
 function runAssertions(evaL, text) {
   const blocks = extractRBlocks(text);
@@ -189,16 +194,22 @@ function selftest() {
   const fake = { assertions: allAsserts };
   const good = runAssertions(fake, goodSample);
   const bad = runAssertions(fake, badSample);
+  // 未闭合 fence 样例：去掉 badSample 的闭合 ```，期望同样全命中（鲁棒性回归）
+  const badUnclosed = runAssertions(fake, badSample.replace(/```\s*$/, ""));
 
   const goodFails = good.filter((r) => r.status === "FAIL");
   const badFails = bad.filter((r) => r.status === "FAIL").map((r) => r.name);
+  const unclosedFails = badUnclosed.filter((r) => r.status === "FAIL").map((r) => r.name);
   const expectedBad = ["no_common_seed", "no_dev_testset_use", "r_coding_style", "pipeop_pipe_syntax", "parallel_authorized"];
   const missing = expectedBad.filter((n) => !badFails.includes(n));
+  const missingUnclosed = expectedBad.filter((n) => !unclosedFails.includes(n));
 
   console.log("[selftest] 黄金样例 FAIL 数 =", goodFails.length, goodFails.length === 0 ? "(OK)" : "(应=0)");
   console.log("[selftest] 违规样例命中 =", badFails.join(", "));
   if (missing.length) console.log("[selftest] 漏检:", missing.join(", "));
-  const ok = goodFails.length === 0 && missing.length === 0;
+  console.log("[selftest] 未闭合fence样例命中 =", unclosedFails.length + "/" + expectedBad.length);
+  if (missingUnclosed.length) console.log("[selftest] 未闭合fence漏检:", missingUnclosed.join(", "));
+  const ok = goodFails.length === 0 && missing.length === 0 && missingUnclosed.length === 0;
   console.log(ok ? "[selftest] 引擎自检 PASS" : "[selftest] 引擎自检 FAIL");
   return ok ? 0 : 1;
 }

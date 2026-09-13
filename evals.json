@@ -14,6 +14,7 @@
         { "name": "no_dev_testset_use", "check": "非注释代码行不得出现 split$test" },
         { "name": "r_coding_style", "check": "禁 <-、function(、ifelse(、merge(、%>%、gather(/spread(" },
         { "name": "pipeop_pipe_syntax", "check": "PipeOp/图组件连接必须用 %>>%，不得用 |> 串联 po(/ppl( 调用" },
+        { "name": "parallel_authorized", "check": "不得未经询问直接调用 future::plan 开并行（红线 5）" },
         { "name": "visualizes_evaluation", "severity": "WARN", "check": "启发式：评估应附可视化（autoplot/ggplot/roc/prc 等）" }
       ]
     },
@@ -66,6 +67,7 @@
         { "name": "no_dev_testset_use", "check": "非注释代码行不得出现 split$test" },
         { "name": "r_coding_style", "check": "禁 <-、function(、ifelse(、merge(、%>%" },
         { "name": "pipeop_pipe_syntax", "check": "PipeOp 连接必须用 %>>%" },
+        { "name": "parallel_authorized", "check": "不得未经询问直接调用 future::plan 开并行（红线 5）" },
         { "name": "visualizes_evaluation", "severity": "WARN", "check": "启发式：回归评估应附观测vs预测/残差可视化" }
       ]
     },
