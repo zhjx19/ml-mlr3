@@ -19,6 +19,10 @@
 - `node scripts/run_evals.mjs --selftest` → 引擎自检 PASS（黄金/违规/未闭合三样例）
 - A 组回放 26 PASS / 0 FAIL；B 组阴性对照 12 FAIL 全抓获
 
+### Pub（公开发布改造，发布至 github.com/zhjx19/ml-mlr3）
+- 为什么改：私用转公开，按出生证清单补必备件。新增 LICENSE（MIT）、`.claude-plugin/` marketplace 双通道（结构对齐 tidymodels/skills）、README 致谢节与 License 节、安装三通道（skills.sh / plugin marketplace / 手动链接，移除私人路径）；SKILL.md 负触发中本机技能名引用改为通用表述；「与 Autos 版关系」内部历史节归档至本 CHANGELOG 1.x 条目。
+- 发布动作：`master` → `main` 改名后首推，tag `v2.1.0`（对应本节 + [2.0] 内容）。
+
 ## [2.0] — 2026-09-13 · 鲁班工坊第二轮打磨
 
 ### Added

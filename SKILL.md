@@ -4,8 +4,8 @@ description: >-
   Use when 用户需要用 R mlr3verse 框架做表格数据机器学习建模——构建预测模型、比较算法、
   调优超参数、做特征工程或特征选择，或提到 mlr3、mlr3pipelines、mlr3tuning、mlr3fselect、
   GraphLearner、PipeOp、auto_tuner、auto_fselector 等关键词时使用。
-  不要用于：深度学习、非表格数据（图像/文本/NLP）；tidymodels 工作流（用 tidymodels 技能）；
-  轻量探索性分组建模（用 tidy-data 技能的 nest+map）；数据清洗本身（用 data-cleaning 技能）。
+  不要用于：深度学习、非表格数据（图像/文本/NLP）；tidymodels 工作流（改用 tidymodels 生态技能）；
+  轻量探索性分组建模（dplyr nest + map 即可）；数据清洗本身。
 ---
 
 # mlr3verse 表格数据机器学习建模
@@ -15,7 +15,7 @@ description: >-
 
 本技能包覆盖 mlr3verse 机器学习建模全流程：数据分割 → PipeOp 特征工程 → 模型选择 → 调优/特征选择 → 嵌套重抽样评估 → 最终拟合。
 
-**不在范围内**：深度学习、非表格数据（图像/文本/NLP）、tidymodels（见 tidymodels 技能包）。
+**不在范围内**：深度学习、非表格数据（图像/文本/NLP）、tidymodels 工作流（改用 tidymodels 生态技能）。
 
 ## 版本锚定
 

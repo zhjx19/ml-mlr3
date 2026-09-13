@@ -5,6 +5,9 @@
 [![Agent Skills](https://img.shields.io/badge/Agent%20Skills-ml--mlr3-blueviolet)](SKILL.md)
 [![Live Verify](https://img.shields.io/badge/verify_examples.R-6%2F6%20PASS-brightgreen)](#验证与测试)
 [![Evals](https://img.shields.io/badge/evals-6%20prompts%20%2B%20assertions-orange)](#验证与测试)
+[![GitHub](https://img.shields.io/badge/GitHub-zhjx19%2Fml--mlr3-black)](https://github.com/zhjx19/ml-mlr3)
+[![skills.sh](https://skills.sh/b/zhjx19/ml-mlr3)](https://skills.sh/zhjx19/ml-mlr3)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **它把「随手就能写错的 mlr3 建模代码」变成「数据花费、防泄露、调参、最终评估全程守规矩的可复现流程」。**
 
@@ -28,10 +31,26 @@
 
 ## 快速开始
 
-把本目录链接进 Agent 的 skills 目录（ZCode / Claude Code 均适用）：
+**前置条件**：R（建议 ≥ 4.2）+ `mlr3verse`；跑 evals 评分器需 Node ≥ 18（可选）。零 API key，全部本地运行。
+
+方式一：skills.sh
 
 ```bash
-ln -s /c/Users/zhang/.config/opencode/skills/ml-mlr3 /c/Users/zhang/.zcode/skills/ml-mlr3
+npx skills add zhjx19/ml-mlr3
+```
+
+方式二：Claude Code plugin marketplace
+
+```text
+/plugin marketplace add zhjx19/ml-mlr3
+/plugin install ml-mlr3@ml-mlr3
+```
+
+方式三：手动链接进任意 Agent 的 skills 目录（ZCode / Claude Code / OpenCode 均适用）
+
+```bash
+git clone https://github.com/zhjx19/ml-mlr3.git
+ln -s "$(pwd)/ml-mlr3" <你的-agent-skills-目录>/ml-mlr3
 ```
 
 装完对 Agent 说：
@@ -60,7 +79,7 @@ ln -s /c/Users/zhang/.config/opencode/skills/ml-mlr3 /c/Users/zhang/.zcode/skill
 | 并行需授权 | `future::plan()` 前先报核心数并询问，Windows 用 `multisession` |
 | 嵌套重抽样用途 | 只做无偏比较；真正调参走 `auto_tuner$train()` |
 
-不会做：深度学习、非表格数据、tidymodels 工作流（自动转介对应 skill）、轻量探索性分组建模（转介 tidy-data skill）。
+不会做：深度学习、非表格数据、tidymodels 工作流（指引用户改用对应生态技能）、轻量探索性分组建模（一个 dplyr `nest` + `map` 就够，不必上 mlr3）。
 
 ## 它和 tidymodels skill 有什么不同
 
@@ -125,9 +144,16 @@ node scripts/run_evals.mjs              # 逐断言评分，任一 FAIL 退出�
 - **A 组**（按本 skill 纪律作答 ×6）：26 断言全 PASS——skill 教的写法全部通过红线审计
 - **B 组**（模拟无 skill 的典型错误 ×6，见 `evals/outputs/negative/`）：12 FAIL 全部抓获——常见种子、测试集直评、图外 SMOTE、时序随机 CV、未询问开并行、嵌套重抽样概念混淆一个都跑不掉
 
-## 与 Autos（aardio）版的关系
+## 致谢
 
-本 skill 从 Autos 版 `autos.skills.mlr3verse` 转换而来：元数据改 YAML frontmatter、`_.aardio` 主库删除、`.res/knowledge/` → `references/`。两个版本核心 R 代码与方法论一致，可互相同步。
+- [tidymodels/skills](https://github.com/tidymodels/skills) —— 官方 skill 的 evals/断言形态与「纪律优先」方法论是本 skill 的对标来源
+- [mlr3book](https://mlr3book.mlr-org.com) 与 [mlr3gallery](https://mlr3gallery.mlr-org.com) —— mlr3verse 生态权威文档
+- [krishi-shah/ml-engineer-skills](https://github.com/krishi-shah/ml-engineer-skills) —— 「ML 错误检查器」思路的启发
+- 版本演进提示的上游依据：mlr3 / mlr3pipelines / mlr3tuning / mlr3fselect 各包 NEWS
+
+## License
+
+[MIT](LICENSE)
 
 ---
 
