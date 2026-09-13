@@ -3,7 +3,7 @@
 > *「模型代码谁都会写，难的是全程不偷偷摸一下测试集。」*
 
 [![Agent Skills](https://img.shields.io/badge/Agent%20Skills-ml--mlr3-blueviolet)](SKILL.md)
-[![Live Verify](https://img.shields.io/badge/verify_examples.R-5%2F5%20PASS-brightgreen)](#验证与测试)
+[![Live Verify](https://img.shields.io/badge/verify_examples.R-6%2F6%20PASS-brightgreen)](#验证与测试)
 [![Evals](https://img.shields.io/badge/evals-6%20prompts%20%2B%20assertions-orange)](#验证与测试)
 
 **它把「随手就能写错的 mlr3 建模代码」变成「数据花费、防泄露、调参、最终评估全程守规矩的可复现流程」。**
@@ -81,7 +81,7 @@ ml-mlr3/
 ├── evals.json                 # 6 个评测 prompt + 机器可查断言（对标 tidymodels 官方 evals 形态）
 ├── references/
 │   ├── data-spending.md       # 数据划分与测试集隔离（含最终评估话术）
-│   ├── resampling.md          # CV/重复CV/holdout/分组/rolling_origin
+│   ├── resampling.md          # CV/重复CV/holdout/分组/时序custom滚动折
 │   ├── feature-engineering.md + feature-engineering/  # PipeOp 预处理总览与 4 个细分
 │   ├── tuning.md              # auto_tuner / auto_fselector
 │   ├── evaluation.md          # 指标、ROC/PRC/残差图、benchmark、最终评估
@@ -107,9 +107,10 @@ Rscript scripts/verify_examples.R
 [PASS] 最小骨架·回归
 [PASS] auto_tuner（svm 条件参数）
 [PASS] ppl(branch) 分支调参
+[PASS] 时序·custom 滚动折
 [PASS] benchmark 调优后比较
 
-=== 汇总：5/5 PASS ===
+=== 汇总：6/6 PASS ===
 ```
 
 **评测**（evals.json 的 6 个 prompt 覆盖标准流程/红线拦截/时间序列/不平衡/回归/嵌套重抽样陷阱）：把回答存进 `evals/outputs/eval-<id>.md`，然后：

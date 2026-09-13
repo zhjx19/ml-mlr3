@@ -9,8 +9,8 @@
 | 中小数据 | `rsmp("cv", folds = 5 或 10)` | 默认选择，方差较低 |
 | 模型很慢 / 数据较大 | `rsmp("holdout")` | 快速但方差较高 |
 | 最终训练期稳健比较 | `rsmp("repeated_cv")` | 更稳定但计算量大 |
-| 同一实体多条记录 | group-aware CV | 先设置 `group` 角色 |
-| 时间序列 | `rsmp("rolling_origin")` | 避免未来预测过去 |
+| 同一实体多条记录 | group-aware CV | 先设置 `group` 角色（实测 `rsmp("cv")` 会自动按组切分） |
+| 时间序列 | 显式时间切分 + `rsmp("custom")` 滚动折 | 内置字典无 rolling_origin；order 角色不改变随机 CV 切分 |
 | 调参流程真实性能 | 外层 CV + `auto_tuner()` | 嵌套重抽样 |
 
 ## 2. V 折交叉验证
@@ -66,24 +66,33 @@ rr = resample(train_task, learner, cv)
 
 目标：同一个 group 不应同时出现在某次训练折和验证折中。
 
-## 6. 时间序列：滚动原点
+## 6. 时间序列：显式时间切分 + `rsmp("custom")` 滚动折
 
-时间序列要保持时间方向：
+> **实测警告（mlr3 1.7.1 验证）**：内置重抽样字典只有 bootstrap / custom / custom_cv / cv / holdout / insample / loo / repeated_cv / subsampling——**没有 `rolling_origin`**。且 `order` 角色只作时间标记，**不会**让 `rsmp("cv")` / `rsmp("holdout")` 按时间切分（实测 holdout 测试集会散布在中段）。时序正确做法只有两条：按时间位置显式切分 + `rsmp("custom")` 手写滚动折。
 
 ```r
+# order 角色仅作标记，不能替代显式时间切分
 task$set_col_roles("date_col", roles = "order")
 
-ro = rsmp("rolling_origin",
-  folds = 10,
-  fixed_window = FALSE,
-  window_size = 0.6,
-  horizon = 1
-)
+# 1) 训练 / 测试：按时间位置切，前 80% 训练，后 20% 留作最终评估
+n = nrow(task)
+train_ids = seq_len(floor(n * 0.8))
+test_ids  = seq(floor(n * 0.8) + 1, n)
+train_task = task$clone(deep = TRUE)$filter(train_ids)
 
-rr = resample(train_task, learner, ro)
+# 2) 开发期滚动折：每折训练窗严格早于验证窗（验证窗长度 = 业务预测 horizon）
+n_tr = train_task$nrow
+b1 = floor(n_tr * 0.55); b2 = floor(n_tr * 0.70); b3 = floor(n_tr * 0.85)
+rc = rsmp("custom")
+rc$instantiate(train_task,
+  train = list(1:b1,        1:b2,        1:b3),
+  test  = list((b1 + 1):b2, (b2 + 1):b3, (b3 + 1):n_tr))
+
+rr = resample(train_task, learner, rc)
+rr$aggregate(msr("regr.rmse"))
 ```
 
-在写代码前确认数据已按时间排序、预测 horizon 与业务目标一致。
+在写代码前确认数据已按时间排序、验证窗长度与业务预测 horizon 一致。
 
 ## 7. 保存与提取预测
 

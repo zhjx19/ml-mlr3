@@ -79,10 +79,19 @@ const REGISTRY = {
     const ok = /不能|不可以|不建议|不要这样|拒绝|泄露|红线|错误|风险|正确做法|正确写法|data leakage|leakage/i.test(ctx.text);
     return ok ? { status: "PASS" } : { status: "FAIL", detail: "未检出拒绝/纠正语义（heuristic）" };
   },
-  uses_rolling_origin(ctx) {
-    return /rolling_origin/.test(ctx.code)
-      ? { status: "PASS" }
-      : { status: "FAIL", detail: "时间序列重抽样未使用 rolling_origin" };
+  time_aware_resampling(ctx) {
+    // 时序题：须显式时间切分 + rsmp("custom") 滚动折。
+    // 事实：mlr3 ≤1.7.x 内置字典无 rolling_origin；order 角色不改变随机 CV/holdout 切分（实测）。
+    const hasCustom = /rsmp\s*\(\s*["']custom["']/.test(ctx.code);
+    const hasOrderRole = /set_col_roles\s*\([^)]*["']order["']/.test(ctx.code);
+    const explicitSplit = /seq_len\s*\(|floor\s*\(/.test(ctx.code);
+    const randomCV = /rsmp\s*\(\s*["']cv["']/.test(ctx.code);
+    if (hasCustom && (hasOrderRole || explicitSplit)) return { status: "PASS" };
+    const detail = [];
+    if (!hasCustom) detail.push("未用 rsmp(\"custom\") 滚动折（rolling_origin 在内置字典不存在）");
+    if (!hasOrderRole && !explicitSplit) detail.push("未见显式时间切分或 order 角色");
+    if (randomCV && !hasCustom) detail.push("时序场景出现随机 rsmp(\"cv\")");
+    return { status: "FAIL", detail: detail.join("; ") };
   },
   smote_in_graph(ctx) {
     const hasSmote = /smote/i.test(ctx.code);

@@ -96,6 +96,33 @@ results = c(
     TRUE
   }),
 
+  ## 时序：显式时间切分 + rsmp("custom") 滚动折
+  ## （mlr3 内置字典无 rolling_origin；order 角色不改变随机 CV 切分方式）
+  run_case("时序·custom 滚动折", {
+    d_ts = data.table(
+      day = seq(as.Date("2024-01-01"), by = "day", length.out = 60),
+      x1  = rnorm(60),
+      y   = rnorm(60))
+    task_ts = as_task_regr(d_ts, target = "y")
+    task_ts$set_col_roles("day", roles = "order")
+    n_ts = task_ts$nrow
+    tr_ids = seq_len(floor(n_ts * 0.8))
+    tr_task = task_ts$clone(deep = TRUE)$filter(tr_ids)
+    n_tr = tr_task$nrow
+    b1 = floor(n_tr * 0.55); b2 = floor(n_tr * 0.70); b3 = floor(n_tr * 0.85)
+    rc = rsmp("custom")
+    rc$instantiate(tr_task,
+      train = list(1:b1,        1:b2,        1:b3),
+      test  = list((b1 + 1):b2, (b2 + 1):b3, (b3 + 1):n_tr))
+    stopifnot(all(rc$test_set(1) > rc$train_set(1)),
+              all(rc$test_set(2) > rc$train_set(2)),
+              all(rc$test_set(3) > rc$train_set(3)))
+    rr_ts = resample(tr_task, lrn("regr.rpart"), rc)
+    a_ts = rr_ts$aggregate(msr("regr.rmse"))
+    stopifnot(is.finite(a_ts[["regr.rmse"]]))
+    TRUE
+  }),
+
   ## benchmark：比较经调优的算法（小规模）
   run_case("benchmark 调优后比较", {
     task = as_task_classif(df_bin, target = "Species", positive = "setosa")

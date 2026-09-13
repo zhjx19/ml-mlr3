@@ -64,14 +64,18 @@ split = partition(task, ratio = 0.7)
 
 ## 5. 时间序列 / 有序数据
 
-时间序列禁止随机划分。先按时间排序，并设置 order 角色：
+时间序列禁止随机划分——`partition()` 会把未来数据撒进训练集；`order` 角色只作标记，**不会**改变随机重抽样的切分方式（实测 mlr3 1.7.1）。按时间位置显式切：
 
 ```r
 task = as_task_regr(time_ordered_df, target = "outcome")
-task$set_col_roles("date_col", roles = "order")
+task$set_col_roles("date_col", roles = "order")   # 仅作标记
+
+n = nrow(task)
+train_ids = seq_len(floor(n * 0.8))   # 前 80% 时间段训练
+test_ids  = seq(floor(n * 0.8) + 1, n) # 后 20% 留作最终评估
 ```
 
-训练集必须早于测试集。开发期使用 rolling origin 等时间感知重抽样，见 `resampling.md`。
+训练集必须严格早于测试集。开发期用 `rsmp("custom")` 手写滚动折（内置字典无 rolling_origin），见 `resampling.md` §6。
 
 ## 6. 回归分层建议
 

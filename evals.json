@@ -34,10 +34,10 @@
       "id": 3,
       "title": "时间序列划分与重抽样",
       "prompt": "mlr3 里月度销售数据（已按时间从旧到新排序，共 4 年）怎么划分和重抽样？我要预测下个月销量。",
-      "expected_output": "禁止随机划分：as_task_regr 后设 order 角色；训练/测试按时间先后切（前段训练后段测试）；开发期用 rsmp(\"rolling_origin\") 做时间感知重抽样；解释为何随机 CV 会未来预测过去。不得对时序数据直接 rsmp(\"cv\")。",
+      "expected_output": "禁止随机划分与随机 CV：按时间位置显式切分（前段训练、后段留最终评估）；开发期用 rsmp(\"custom\") 手写滚动折（训练窗严格早于验证窗，验证窗长度=预测 horizon）。要点：mlr3 内置字典没有 rolling_origin；order 角色只作标记，不会改变随机 CV/holdout 的切分方式（实测）。",
       "files": [],
       "assertions": [
-        { "name": "uses_rolling_origin", "check": "重抽样必须出现 rolling_origin（或明确说明其等价时间感知方案）" },
+        { "name": "time_aware_resampling", "check": "须显式按时间切分（seq_len/floor 等）且用 rsmp(\"custom\") 滚动折；不得只靠 order 角色配随机 CV（heuristic 见评分器实现）" },
         { "name": "no_common_seed", "check": "set.seed() 不得使用常见值" },
         { "name": "r_coding_style", "check": "禁 <-、function(、ifelse(、merge(、%>%" }
       ]

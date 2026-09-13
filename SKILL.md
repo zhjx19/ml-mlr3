@@ -19,7 +19,7 @@ description: >-
 
 ## 版本锚定
 
-本技能示例代码于 **2026-09-13** 在下列环境实测通过（`scripts/verify_examples.R` 5/5 PASS）：
+本技能示例代码于 **2026-09-13** 在下列环境实测通过（`scripts/verify_examples.R` 6/6 PASS）：
 
 | 包 | 版本 |
 |---|---|
@@ -31,6 +31,13 @@ description: >-
 | paradox | 1.0.1 |
 
 mlr3 生态迭代快，遇到 API 报错先怀疑版本差异：用 `packageVersion("mlr3")` 核对，已知迁移案例如早停验证集设置已从 learner 参数 `validate` 改为 `set_validate()`（见 `references/advanced-workflows.md` §5）。改完示例代码必须重跑 `Rscript scripts/verify_examples.R`。
+
+### 版本演进提示（上游 changelog 摘要，2026-09 核对）
+
+- **mlr3 ≥ 1.8.0（当前 1.7.1，未升级）**：BREAKING——`tsk("pima")` 移除，改用 `tsk("diabetes")`（本技能未引用 pima）；新增 `msr("best_valid_score")`（早停内部验证分数，需 mlr3pipelines ≥ 0.12 的 `$best_valid_scores` 配合）。升级后必须重跑 verify。
+- **mlr3tuning ≥ 1.6.1（当前 1.6.0）**：修复 `AutoTuner$clone(deep = TRUE)` 深克隆语义——低版本上克隆与原对象共享内部 learner/重抽样，红线 2 额外适用于 AutoTuner。
+- **mlr3fselect ≥ 1.7.0（当前 1.6.0）**：修复 `fs("rfecv")` 与最小化指标（classif.ce 等）连用时选错特征数的方向 bug——低版本上该组合的结果无效，须重算。
+- **mlr3pipelines 0.11（当前 0.11.0，实测）**：插补 PipeOp 已支持 Date/POSIXct；`po("splines")` 数值样条基展开可用；GraphLearner `$predict_newdata_fast()` 可用。≥ 0.12 起 `greplicate()` 移除，改用 `ppl("greplicate")`。
 
 ## 全局 R 编码铁律
 
@@ -205,8 +212,8 @@ glrn = ppl("robustify") %>>%   # task=task, learner=lrn 可选
 |---|---|
 | 中小数据 | `rsmp("cv", folds = 5)` 或 10 |
 | 大数据（≥ 10k） | 训练集内 holdout |
-| 分组相关观测 | 设置 `group` 角色后 CV |
-| 时间序列 | `rsmp("rolling_origin")` |
+| 分组相关观测 | 设置 `group` 角色后 CV（实测自动按组切分） |
+| 时间序列 | 按时间位置显式切分 + `rsmp("custom")` 滚动折——内置字典**无** rolling_origin，`order` 角色不改变随机 CV 切分方式 |
 
 | 任务 | 首选指标 | 补充 |
 |---|---|---|
