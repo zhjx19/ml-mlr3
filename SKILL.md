@@ -172,7 +172,7 @@ rr$aggregate(measures)
 
 ## ppl("robustify") 默认预处理管线
 
-**依赖包提示（防"运行即报错"）**：示例用到的模型/算子对应 R 包——`classif.glmnet`→`glmnet`、`classif.ranger`→`ranger`、`classif.kknn`→`kknn`、`classif.svm`→`e1071`（mlr3verse 默认附带，但其 `cost`/`gamma` 是条件参数，见「调优：auto_tuner」陷阱说明）、`po("smote")`→`smotefamily`、`yeojohnson` 分支→`bestNormalize`。运行前先确认已安装（缺则 `install.packages(...)`）；未安装的模型/分支改用可用替代（如未装 bestNormalize 就去掉 yeojohnson 分支）。
+**依赖包提示（防"运行即报错"）**：示例用到的模型/算子对应 R 包——`classif.glmnet`→`glmnet`、`classif.ranger`→`ranger`、`classif.kknn`→`kknn`、`classif.svm`→`e1071`（mlr3verse 默认附带，但其 `cost`/`gamma` 是条件参数，见「调优：auto_tuner」陷阱说明）、`po("smote")`→`smotefamily`、`yeojohnson` 分支→`bestNormalize`、ROC/PRC 可视化→`precrec`。运行前先确认已安装（缺则 `install.packages(...)`）；未安装的模型/分支改用可用替代（如未装 bestNormalize 就去掉 yeojohnson 分支）。
 
 一键稳健预处理的 `ppl("robustify")` 生成一个**含 14 个 PipeOp 的非线性 DAG**（非简单线性流），覆盖大多数缺失值插补和因子编码场景。按执行顺序的核心节点：
 
@@ -213,6 +213,22 @@ glrn = ppl("robustify") %>>%   # task=task, learner=lrn 可选
 | 二分类 | `classif.auc`, `classif.ce` | 不平衡加 `classif.prauc`, `classif.fbeta` |
 | 多分类 | `classif.acc`, macro AUC | `classif.mbrier` |
 | 回归 | `regr.rmse`, `regr.rsq` | `regr.mae` |
+
+### 评估必附可视化
+
+数值指标之外必须附对应图形（用训练集内 CV 预测绘制；测试集图须获授权后画）：
+
+| 任务 | 必附 |
+|---|---|
+| 二分类 | ROC（不平衡换 PR）+ 阈值相关 `autoplot(pred, type = "threshold")` |
+| 回归 | 观测 vs 预测散点 + 残差图 |
+
+```r
+# ROC/PRC 图依赖 R 包 precrec（mlr3verse 不自带，缺则 install.packages("precrec")）
+autoplot(rr$prediction(), type = "roc")   # 二分类；不平衡改 type = "prc"
+```
+
+回归的 obs-vs-pred / 残差 ggplot 写法、benchmark 箱线图见 `references/evaluation.md`。
 
 ## PipeOp / GraphLearner 特征工程
 
