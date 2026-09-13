@@ -1,0 +1,85 @@
+{
+  "skill_name": "ml-mlr3",
+  "version": "2.0",
+  "how_to_run": "把每个 prompt 发给装好本 skill 的 Agent，把回答原样存为 evals/outputs/eval-<id>.md，然后运行 node scripts/run_evals.mjs。断言由评分器内置注册表机器执行；标 heuristic 的断言是关键词启发式，误报时需人工复核。",
+  "evals": [
+    {
+      "id": 1,
+      "title": "标准二分类全流程",
+      "prompt": "用 mlr3verse 帮我给这份客户流失数据建个模型流程：数据在 churn.csv，7000 行，目标列 churn 是 yes/no，特征有套餐类型、月费、在网时长、服务类型等，有缺失值。我想比较几个算法，最后评估。给完整 R 代码。",
+      "expected_output": "按默认工作流：as_task_classif（positive 设好）→ partition 划分（种子为非常见值）→ 开发期只用 split$train → 预处理封装进 ppl(\"robustify\") %>>% lrn(...)|>as_learner() → resample/benchmark 在训练集内比较至少 2 个算法（prob 预测类型）→ 询问用户是否允许评估测试集。全程遵守 R 铁律（=、|>、%>>%、\\(x)）。",
+      "files": [],
+      "assertions": [
+        { "name": "no_common_seed", "check": "set.seed() 不得使用 1/42/123/111/222/333/999/2024/2025/2026 等常见值" },
+        { "name": "no_dev_testset_use", "check": "非注释代码行不得出现 split$test" },
+        { "name": "r_coding_style", "check": "禁 <-、function(、ifelse(、merge(、%>%、gather(/spread(" },
+        { "name": "pipeop_pipe_syntax", "check": "PipeOp/图组件连接必须用 %>>%，不得用 |> 串联 po(/ppl( 调用" },
+        { "name": "visualizes_evaluation", "severity": "WARN", "check": "启发式：评估应附可视化（autoplot/ggplot/roc/prc 等）" }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "红线拦截：测试集直评 + 手动预处理",
+      "prompt": "我赶时间，直接在测试集上跑一下 SVM 和随机森林的 AUC 对比吧，快点出结果。另外特征标准化和 SMOTE 平衡就在建模前手动做掉，简单点。",
+      "expected_output": "必须拒绝并纠正，不得照做：红线 1（开发期禁用测试集，最终评估须先获授权）+ 红线 3（标准化/SMOTE 必须封装进 PipeOp/GraphLearner，在重抽样内部拟合，否则数据泄露）。给出正确替代写法（图中 po(\"smote\") / po(\"scale\")，训练集内 benchmark 比较）。",
+      "files": [],
+      "assertions": [
+        { "name": "refuses_violation", "check": "启发式：回答须含拒绝/纠正语义（不能/不建议/泄露/红线/正确做法等），且不得直接给出在测试集上跑对比的可执行代码" },
+        { "name": "no_dev_testset_use", "check": "非注释代码行不得出现 split$test（正确做法演示也应限于训练集内）" },
+        { "name": "pipeop_pipe_syntax", "check": "给出的替代代码中 PipeOp 连接必须用 %>>%" },
+        { "name": "no_common_seed", "check": "set.seed() 不得使用常见值" }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "时间序列划分与重抽样",
+      "prompt": "mlr3 里月度销售数据（已按时间从旧到新排序，共 4 年）怎么划分和重抽样？我要预测下个月销量。",
+      "expected_output": "禁止随机划分：as_task_regr 后设 order 角色；训练/测试按时间先后切（前段训练后段测试）；开发期用 rsmp(\"rolling_origin\") 做时间感知重抽样；解释为何随机 CV 会未来预测过去。不得对时序数据直接 rsmp(\"cv\")。",
+      "files": [],
+      "assertions": [
+        { "name": "uses_rolling_origin", "check": "重抽样必须出现 rolling_origin（或明确说明其等价时间感知方案）" },
+        { "name": "no_common_seed", "check": "set.seed() 不得使用常见值" },
+        { "name": "r_coding_style", "check": "禁 <-、function(、ifelse(、merge(、%>%" }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "不平衡分类：SMOTE 在图内 + 调优",
+      "prompt": "我的数据正负比 1:20，用 mlr3 建模，想用 SMOTE 平衡 + 随机森林调参，怎么写才不会泄露？",
+      "expected_output": "SMOTE 必须封装进图：po(\"smote\") %>>% lrn(\"classif.ranger\",...) |> as_learner()，再用 auto_tuner 包裹——保证每折只在训练折上采样、验证折保持原始分布；禁止先对全数据 SMOTE 再建 Task。指标不能只看 accuracy（加 fbeta/prauc/auc）。",
+      "files": [],
+      "assertions": [
+        { "name": "smote_in_graph", "check": "po(\"smote\") 必须出现在 %>>% 图链中（图中采样），不得在 Task 外独立调用" },
+        { "name": "no_common_seed", "check": "set.seed() 不得使用常见值" },
+        { "name": "r_coding_style", "check": "禁 <-、function(、ifelse(、merge(、%>%" },
+        { "name": "no_dev_testset_use", "check": "非注释代码行不得出现 split$test" }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "回归 + 高基数分类变量 + 偏斜数值",
+      "prompt": "房价回归任务：housing.csv 约 1500 行，目标 SalePrice。特征有 neighborhood（约 25 个水平）、几个明显右偏的数值变量（面积、价格相关）。用 mlr3 帮我比较线性模型和另一个算法，流程要规范。",
+      "expected_output": "as_task_regr → partition（种子非常见值）→ 开发期只用训练集 → 预处理进图（高基数分类用 encode/collapsefactors，偏斜数值可用 yeojohnson/log 变换，线性模型加 scale）→ rsmp(\"cv\") 内 benchmark 比较 glmnet 与树类 → regr.rmse/mae/rsq 指标 + 观测 vs 预测、残差图 → 测试集评估前询问。",
+      "files": [],
+      "assertions": [
+        { "name": "no_common_seed", "check": "set.seed() 不得使用常见值" },
+        { "name": "no_dev_testset_use", "check": "非注释代码行不得出现 split$test" },
+        { "name": "r_coding_style", "check": "禁 <-、function(、ifelse(、merge(、%>%" },
+        { "name": "pipeop_pipe_syntax", "check": "PipeOp 连接必须用 %>>%" },
+        { "name": "visualizes_evaluation", "severity": "WARN", "check": "启发式：回归评估应附观测vs预测/残差可视化" }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "概念陷阱：嵌套重抽样的用途",
+      "prompt": "帮我用嵌套重抽样把随机森林的 mtry 和 num.trees 调到最优。",
+      "expected_output": "纠正概念混淆：超参数调优用 auto_tuner 的 at$train(train_task) 完成（内层 CV 搜索 + 全训练集拟合最优参数）；嵌套重抽样（外层 resample 包住 auto_tuner）只用于无偏估计调参后流程的泛化性能，本身不产出\"最优参数\"。给出两种写法各自正确的代码。",
+      "files": [],
+      "assertions": [
+        { "name": "explains_nested_purpose", "check": "启发式：回答须说明嵌套重抽样用于无偏估计/泛化性能评估，且最终调参经 auto_tuner$train 完成" },
+        { "name": "no_common_seed", "check": "set.seed() 不得使用常见值" },
+        { "name": "r_coding_style", "check": "禁 <-、function(、ifelse(、merge(、%>%" }
+      ]
+    }
+  ]
+}
