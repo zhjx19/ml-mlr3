@@ -116,9 +116,14 @@ Rscript scripts/verify_examples.R
 **评测**（evals.json 的 6 个 prompt 覆盖标准流程/红线拦截/时间序列/不平衡/回归/嵌套重抽样陷阱）：把回答存进 `evals/outputs/eval-<id>.md`，然后：
 
 ```bash
-node scripts/run_evals.mjs --selftest   # 引擎自检（黄金样例 0 FAIL，违规样例全命中）
+node scripts/run_evals.mjs --selftest   # 引擎自检（黄金 0 FAIL、违规 5/5、未闭合 fence 5/5）
 node scripts/run_evals.mjs              # 逐断言评分，任一 FAIL 退出码 1
 ```
+
+2026-09-13 双向回放结果（开发者自测）：
+
+- **A 组**（按本 skill 纪律作答 ×6）：26 断言全 PASS——skill 教的写法全部通过红线审计
+- **B 组**（模拟无 skill 的典型错误 ×6，见 `evals/outputs/negative/`）：12 FAIL 全部抓获——常见种子、测试集直评、图外 SMOTE、时序随机 CV、未询问开并行、嵌套重抽样概念混淆一个都跑不掉
 
 ## 与 Autos（aardio）版的关系
 
