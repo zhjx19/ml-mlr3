@@ -17,6 +17,21 @@ description: >-
 
 **不在范围内**：深度学习、非表格数据（图像/文本/NLP）、tidymodels（见 tidymodels 技能包）。
 
+## 版本锚定
+
+本技能示例代码于 **2026-09-13** 在下列环境实测通过（`scripts/verify_examples.R` 5/5 PASS）：
+
+| 包 | 版本 |
+|---|---|
+| R | 4.6.1 |
+| mlr3 | 1.7.1 |
+| mlr3pipelines | 0.11.0 |
+| mlr3tuning | 1.6.0 |
+| mlr3fselect | 1.6.0 |
+| paradox | 1.0.1 |
+
+mlr3 生态迭代快，遇到 API 报错先怀疑版本差异：用 `packageVersion("mlr3")` 核对，已知迁移案例如早停验证集设置已从 learner 参数 `validate` 改为 `set_validate()`（见 `references/advanced-workflows.md` §5）。改完示例代码必须重跑 `Rscript scripts/verify_examples.R`。
+
 ## 全局 R 编码铁律
 
 本技能包遵循以下全局 R 编码铁律：
