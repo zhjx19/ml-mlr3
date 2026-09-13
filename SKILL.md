@@ -1,6 +1,11 @@
 ---
 name: ml-mlr3
-description: 使用 R mlr3verse 框架进行表格数据机器学习建模。当用户需要构建预测模型、比较算法、调优超参数、做特征工程或特征选择，且提到 mlr3、mlr3pipelines、mlr3tuning、mlr3fselect、GraphLearner、PipeOp、auto_tuner、auto_fselector 等关键词时使用。
+description: >-
+  Use when 用户需要用 R mlr3verse 框架做表格数据机器学习建模——构建预测模型、比较算法、
+  调优超参数、做特征工程或特征选择，或提到 mlr3、mlr3pipelines、mlr3tuning、mlr3fselect、
+  GraphLearner、PipeOp、auto_tuner、auto_fselector 等关键词时使用。
+  不要用于：深度学习、非表格数据（图像/文本/NLP）；tidymodels 工作流（用 tidymodels 技能）；
+  轻量探索性分组建模（用 tidy-data 技能的 nest+map）；数据清洗本身（用 data-cleaning 技能）。
 ---
 
 # mlr3verse 表格数据机器学习建模
@@ -14,7 +19,7 @@ description: 使用 R mlr3verse 框架进行表格数据机器学习建模。当
 
 ## 全局 R 编码铁律
 
-本技能包共享全局 R 编码铁律（见主记忆）：
+本技能包遵循以下全局 R 编码铁律：
 
 - **赋值**：统一 `=`，禁用 `<-`
 - **管道**：数据处理用 **`|>`**，PipeOp 图连接用 **`%>>%`**
