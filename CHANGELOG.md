@@ -2,6 +2,11 @@
 
 本仓库遵循「发版讲清为什么改」的迭代纪律：每个版本记录动机，不只是改动清单。
 
+## [2.1.1] — 2026-09-14 · 协议切换为 Apache-2.0
+
+### Changed
+- **LICENSE：MIT → Apache-2.0**。为什么改：与同门技能（auto-geogebra 等）统一许可证；Apache-2.0 含明确的专利授权条款，对下游采用者更友好。变更范围：LICENSE 全文替换、README 徽章与 License 节、SKILL.md 补充 `license` 字段、marketplace 版本 2.1.1。
+
 ## [2.1] — 2026-09-13 · evals 真实回放 + 时序事实修正
 
 ### Fixed

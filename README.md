@@ -7,7 +7,7 @@
 [![Evals](https://img.shields.io/badge/evals-6%20prompts%20%2B%20assertions-orange)](#验证与测试)
 [![GitHub](https://img.shields.io/badge/GitHub-zhjx19%2Fml--mlr3-black)](https://github.com/zhjx19/ml-mlr3)
 [![skills.sh](https://skills.sh/b/zhjx19/ml-mlr3)](https://skills.sh/zhjx19/ml-mlr3)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 **它把「随手就能写错的 mlr3 建模代码」变成「数据花费、防泄露、调参、最终评估全程守规矩的可复现流程」。**
 
@@ -153,7 +153,7 @@ node scripts/run_evals.mjs              # 逐断言评分，任一 FAIL 退出�
 
 ## License
 
-[MIT](LICENSE)
+[Apache License 2.0](LICENSE)
 
 ---
 

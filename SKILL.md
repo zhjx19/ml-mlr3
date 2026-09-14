@@ -6,6 +6,7 @@ description: >-
   GraphLearner、PipeOp、auto_tuner、auto_fselector 等关键词时使用。
   不要用于：深度学习、非表格数据（图像/文本/NLP）；tidymodels 工作流（改用 tidymodels 生态技能）；
   轻量探索性分组建模（dplyr nest + map 即可）；数据清洗本身。
+license: Apache-2.0
 ---
 
 # mlr3verse 表格数据机器学习建模
