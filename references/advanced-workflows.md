@@ -227,7 +227,7 @@ graph = ppl("robustify", task = task) %>>%
       eval_metric = "logloss")
 glrn = as_learner(graph)
 
-# 关键：验证集用 set_validate() 设置（新版已移除 learner 的 validate 参数）
+# 关键：验证集只能用 set_validate() 设置——learner 构造参数里没有 validate，写 lrn(..., validate = 0.2) 会报错
 # 0.2 表示 20% 训练数据作为内部验证集，用于早停监控
 set_validate(glrn, validate = 0.2)
 
@@ -251,6 +251,6 @@ at$tuning_result   # 含 internal_tuned_values 列出每轮早停选出的 nroun
 - `nrounds(internal = TRUE)`：将迭代轮次下放给内层调优（早停自动确定停止轮次）
 - `early_stopping_rounds = 30`：连续 30 轮无改善则停止
 - `eval_metric = "logloss"`：内层用连续概率指标（比离散 error 更早捕捉过拟合趋势）
-- `set_validate(glrn, validate = 0.2)`：用 20% 训练数据作内部验证集（新版需用 `set_validate()`，learner 参数已无 `validate`）
+- `set_validate(glrn, validate = 0.2)`：用 20% 训练数据作内部验证集——只能这样设置，learner 构造参数中已无 `validate`
 
 **注**：`set_validate(..., validate = "test")` 可复用外层测试集提升数据利用率，但会导致数据泄露并高估泛化性能，仅限计算资源极度受限时的探索性分析。
