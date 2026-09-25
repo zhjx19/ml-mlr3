@@ -4,7 +4,10 @@ name: gates
 #   1) R 骨架回归 —— 全量 20 例实跑（scripts/verify_examples.R）
 #   2) 幻觉键体检 —— 文档示例与 skilled 回放里出现的每个字典键都必须真实存在（scripts/check_answer_api.R）
 #   3) 断言引擎自检 —— 无/有 skill 两侧的评测断言不能互相漏检（scripts/run_evals.mjs --selftest）
-# 可选依赖（ps / mlr3tuningspaces）缺失时脚本记为 SKIP，不算失败；硬依赖装不上则直接红。
+# 依赖清单不再手抄：由 scripts/list_example_deps.R 从 verify_examples.R 本身算出（字典键 $packages
+# + 正文 pkg:: + library()），被 requireNamespace() 守卫的记为可选、缺失只 SKIP。
+# 为什么：首版门禁手抄的清单漏了 `future`（骨架用例 18 里有 `future::availableCores()`，而它只是
+# mlr3tuning 的 Suggests，装 mlr3verse 不带），结果本机 20/20、CI 双平台全红。
 
 on:
   push:
@@ -28,28 +31,27 @@ jobs:
           r-version: release
           use-public-cloud: true
 
-      - name: Install hard deps (mlr3verse tree + example backing packages)
-        shell: Rscript {0}
-        run: |
-          hard = c("mlr3verse", "e1071", "ranger", "xgboost", "bestNormalize")
-          opt  = c("ps", "mlr3tuningspaces")
-          install.packages(c(hard, opt), Ncpus = 4L)
-          missing_hard = hard[!vapply(hard, requireNamespace, logical(1), quietly = TRUE)]
-          if (length(missing_hard)) {
-            cat("::error::硬依赖安装失败:", paste(missing_hard, collapse = ", "), "\n")
-            quit(status = 1)
-          }
-          cat("### R 环境\n", file = Sys.getenv("GITHUB_STEP_SUMMARY"), append = TRUE)
-          vers = sapply(c(hard, opt), function(p) tryCatch(
-            as.character(packageVersion(p)), error = function(e) "MISSING"))
-          cat("```\n", paste0(sprintf("%-18s", names(vers)), vers, collapse = "\n"),
-              "\n```\n", file = Sys.getenv("GITHUB_STEP_SUMMARY"), append = TRUE)
+      - name: Install example deps (derived from the examples themselves)
+        run: Rscript scripts/list_example_deps.R --install --src scripts/verify_examples.R
 
       - name: Run skeleton regression (20 cases)
-        run: Rscript scripts/verify_examples.R
+        shell: bash
+        run: |
+          # 失败案例名直接写成 annotation：未授权的维护者/CI 页面之外的人只看得到红灯，
+          # 看不到"哪一例、为什么"。红灯必须自带病因。
+          Rscript scripts/verify_examples.R 2>&1 | tee _verify.log
+          rc=${PIPESTATUS[0]}
+          grep -E "^FAIL: " _verify.log | sed 's/^/::error::/' || true
+          grep -E "SKIP（" _verify.log | sed 's/^/::warning::/' || true
+          exit $rc
 
       - name: Hallucinated-key audit over every documented example (0 allowed)
-        run: Rscript scripts/check_answer_api.R SKILL.md "references/*.md" "references/feature-engineering/*.md" "evals/outputs/eval-*.md" "examples/replay/skilled-*.md"
+        shell: bash
+        run: |
+          Rscript scripts/check_answer_api.R SKILL.md "references/*.md" "references/feature-engineering/*.md" "evals/outputs/eval-*.md" "examples/replay/skilled-*.md" 2>&1 | tee _apicheck.log
+          rc=${PIPESTATUS[0]}
+          grep -E "\[幻觉\]" _apicheck.log | sed 's/^/::error::/' || true
+          exit $rc
 
       - name: On failure, dump session info for triage
         if: failure()

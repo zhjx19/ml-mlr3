@@ -111,6 +111,7 @@ ml-mlr3/
 │   └── advanced-workflows.md  # 5 大进阶工作流（调优benchmark/图调参/不平衡/联合调优/早停）
 ├── scripts/
 │   ├── verify_examples.R      # 骨架回归：20 个案例一键实跑（含字典探针，防文档写回已移除的 API）
+│   ├── list_example_deps.R    # 从示例本身算出要装哪些 R 包（CI 依赖清单不再手抄）
 │   ├── check_answer_api.R     # 幻觉键体检：抓回答里字典中不存在的 lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()
 │   └── run_evals.mjs          # evals 断言评分器（零依赖 Node）
 ├── examples/
@@ -156,7 +157,15 @@ Rscript scripts/verify_examples.R
 === 汇总：20/20 PASS ===
 ```
 
-**CI 门禁 ≠ 免跑凭证。** `.github/workflows/gates.yml` 在每次 push / PR 上自动做三件事：装好 `mlr3verse` 依赖树后**全量**跑 20 例（ubuntu + windows 双平台，不砍案例、不砍折数、不砍预算）→ 给全部文档示例做一次幻觉键体检 → 跑断言引擎自检。硬依赖（`e1071` / `ranger` / `xgboost` / `bestNormalize`）装不上直接红；可选依赖（`ps` / `mlr3tuningspaces`）缺失由脚本记 SKIP，汇总行会点名，不算失败。
+**CI 门禁 ≠ 免跑凭证——它自己也被量过一次。** 首次上线（commit `c59e384`）就是**双平台全红**，而本机同一天 20/20 PASS。对账出的根因不在示例代码，而在门禁里那份**手抄**的依赖清单：骨架用例 18 有一句 `future::availableCores()`，`future` 只是 mlr3tuning 的 Suggests，装 `mlr3verse` 并不会带它，干净机器上那一例直接 `there is no package called 'future'`。现在清单由 `scripts/list_example_deps.R` 从示例本身算出（字典键的 `$packages` + 正文 `pkg::` + `library()`，剔除 base/recommended），被 `requireNamespace()` 守卫的算可选、缺失只记 SKIP：
+
+```bash
+Rscript scripts/list_example_deps.R              # 报告：示例到底要哪些包、本机缺哪个
+Rscript scripts/list_example_deps.R --print-list  # 只打印待装包名（空格分隔）
+Rscript scripts/list_example_deps.R --install      # CI 用的就是这一条
+```
+
+`.github/workflows/gates.yml` 在每次 push / PR 上自动做三件事：按上面算出的清单装依赖 → **全量**跑 20 例（ubuntu + windows 双平台，不砍案例、不砍折数、不砍预算）→ 给全部文档示例做一次幻觉键体检；另一个 job 跑断言引擎自检。**红灯现在自带病因**：回归与体检两步都把 `[幻觉]` / `FAIL:` 行写成 workflow annotation，不再只留一个状态灯。
 
 但**改动示例代码后仍须本机实跑一遍**（约 5 分钟），并把通过率写进 CHANGELOG——CI 只证明"这两个平台、这个时点的 CRAN 快照"跑得通，而你交付给用户的环境是你自己的机器；两者的实测记录不能互相顶替。
 

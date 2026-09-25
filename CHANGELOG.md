@@ -14,9 +14,14 @@
 - **SKILL.md 存量瘦身：487 → 449 行**（用户 2026-09-26 定的判据"AI 自己也能做对就不写"）。砍掉的四类：`ppl("robustify")` 的 14 节点名单、`pipeline_*` 形参枚举、`branch` 构造器形参名单、已复制进 `advanced-workflows.md` §1 的调优 benchmark 长例。换成什么：三条探测命令（`g$edges` / `g$param_set$ids()` / `g$param_set$values`）+ 一句覆盖默认值的配方。**没有达到用户提的 26KB→约21KB**，落在 26,290 B / 449 行：英文 `description` 涨了约 430 B，而砍掉的清单里有两处替换成"探测块"仍占行数；保留判据是不写会不会做错——分支前缀必须 `update_ids()`、`ParamFct` 可直接赋 `to_tune()` 这两条现场探测不出来，所以留在正文。行数从 487 降到 449 是实测，重量没降是本轮的诚实缺口，下一轮该往"合并 references 重复段"而不是"再删 SKILL.md"走。
 - **回归用例 19 → 20**：新增「文档口径·robustify 图访问器 / 参数 id / 覆盖默认值」，把本轮写进正文的每条口径钉成可重跑断言（`$nodes`/`$pipe` 为 NULL、`$edges` 14×4、`$param_set$ids()` 35 条、`$param_set$values` **已经装了 28 条默认值不是空 list**、`encode.method = "treatment"` 能设且能 train、`predict_newdata` 可用而 `predict(..., type=)` 会报 `Unknown parameters: type`）。
 
+### Fixed
+- **CI 首次上线即双平台全红：门禁的依赖清单改由示例本身算出（新增 `scripts/list_example_deps.R`）**。为什么改：活体尺对账线上真实产物才发现——`c59e384` 的 `verify-examples` 在 ubuntu + windows 都 FAIL，而本机同日 `verify_examples.R` 20/20 PASS。差异不在示例代码，在那份**手抄**进 `gates.yml` 的依赖清单：用例 18 有 `future::availableCores()`，而 `future` 只是 mlr3tuning 的 Suggests，装 `mlr3verse` 不带它（本机装了，所以本地永远量不到）。现在清单由脚本扫示例算出——字典键的 `$packages` + 正文 `pkg::` + `library()`，剔除 base/recommended（`splines`/`stats` 会被 `$packages` 报出来，装它们反而假红），被 `requireNamespace()` 守卫的归为可选（`ps` / `mlr3tuningspaces` / `ranger` 三处，缺失只 SKIP）；干净机器上先装锚点包 `mlr3verse` 再解析，否则算出残缺清单。派生出的必装 14 个里就包括 `future`。
+- **红灯必须自带病因**：`gates.yml` 的回归与幻觉键两步改成 `tee` + 把 `FAIL:` / `[幻觉]` 行写成 `::error::` annotation（`SKIP（` 写 `::warning::`）。为什么改：下载的 CI 日志需要仓库权限，公开读者只看到一个状态灯——上一轮"CI 会撒谎"的教训反过来同样成立：CI 红了你也不知道为什么。已用真实日志验证过两条 grep（通过的日志无匹配、`baseline-eval-1.md` 的日志抓出 3 行幻觉）。
+
 ### 已知空白（记下来，下一轮开刀）
 - 幻觉键体检只查**键**，不查**参数名与类型**。baseline 里 `po("missind", affects = "numerics")`、`po("scale", which = "numerics")`、`lrn("classif.ranger", respect.ui = TRUE)` 三个参数名全是编的（实测可用：`affect_columns`；`scale` 的参数只有 `center/scale/robust/affect_columns`，`which` 反而是 `missind` 的参数；`respect.unordered.factors`），探针一声不响。把它钉进 `examples/EXAMPLE.md` 的"边界"一节，避免读者以为过了探针就能照抄。
 - 双向下放目前只有 2 个 prompt × 2 条件的原文入库（其余 4 个 prompt 的 A/B 只留下断言分数）。
+- **`c59e384` 那次 CI 红的根因是"高置信度"而非"看过日志"**：下载运行日志要仓库权限（`/logs` 返回 403 `Must have admin rights`），公开 API 只给到"步骤 5 失败、步骤 4 安装成功"。缺 `future` 这一点由示例本身算出并验证了失败机制（`pkg::` 打在未装包上 = `there is no package called 'x'`），但**不能排除同一例里还叠着别的失败**。下一次 push 的流水线结果才是最终对账。
 
 ## [2.2.1] — 2026-09-26 · 过尺第二轮：把门禁接到线上 + 正文缺陷逐条现场复核
 
