@@ -9,6 +9,11 @@
 - **`scripts/check_answer_api.R`（幻觉键体检）**。为什么改：断言引擎量的是**纪律**，它看不见另一种更致命的失败——代码写得像模像样、断言也全 PASS，但 `po("imputehci")` / `rsmp("cs")` / `tsk("classif", formula=)` / `msr("classif.kappa")` 这些键在 mlr3verse 字典里压根不存在，用户一跑就报错。脚本把回答里 `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` 的首参逐个用 `$has()` 定性（不用 `$get()`，避免 `po("learner")` 这类"键存在但构造器有必填参数"被误判），不存在时再 `$get()` 一次把字典自己的 "Did you mean" 提示捞出来；参数支持 glob（windows CI 的 pwsh 不展开通配符）。实测：`baseline-*` 16 个唯一键里 8 个幻觉，`skilled-*` 19 个键 0 幻觉；`SKILL.md` + 全部 `references/` + A 组 6 份共 168 个键 0 幻觉（数值随正文变动，以现跑为准）。
 - **CI 第三道门禁**：`gates.yml` 在骨架回归之后跑一次全库幻觉键体检（`SKILL.md` + `references/**` + `evals/outputs/eval-*.md` + `examples/replay/skilled-*.md`，允许 0 个幻觉键）。为什么加：skill 教的键名靠上游改名而腐烂是真实风险（本轮已见过 `ppl("greplicate")` 迁移），只靠人记得去探测等于没有防线；现在哪天上游改名，门禁先红，而不是等用户投诉"示例跑不通"。README 加 `168 keys, 0 hallucinated` 徽章。
 
+### Changed
+- **`description` 首行改英文**。为什么改：技能在市场/其他 runtime 里被检索和展示时，读到的第一句是 frontmatter `description`；纯中文首行让非中文 Agent 的匹配与摘要都吃亏。现在是英文一句定位（含"test set 隔离 / 预处理进重抽样 / 并行按实测资源定档"三条纪律信号）+ 中文关键词别名，末尾"不要用于"边界原样保留。
+- **SKILL.md 存量瘦身：487 → 449 行**（用户 2026-09-26 定的判据"AI 自己也能做对就不写"）。砍掉的四类：`ppl("robustify")` 的 14 节点名单、`pipeline_*` 形参枚举、`branch` 构造器形参名单、已复制进 `advanced-workflows.md` §1 的调优 benchmark 长例。换成什么：三条探测命令（`g$edges` / `g$param_set$ids()` / `g$param_set$values`）+ 一句覆盖默认值的配方。**没有达到用户提的 26KB→约21KB**，落在 26,290 B / 449 行：英文 `description` 涨了约 430 B，而砍掉的清单里有两处替换成"探测块"仍占行数；保留判据是不写会不会做错——分支前缀必须 `update_ids()`、`ParamFct` 可直接赋 `to_tune()` 这两条现场探测不出来，所以留在正文。行数从 487 降到 449 是实测，重量没降是本轮的诚实缺口，下一轮该往"合并 references 重复段"而不是"再删 SKILL.md"走。
+- **回归用例 19 → 20**：新增「文档口径·robustify 图访问器 / 参数 id / 覆盖默认值」，把本轮写进正文的每条口径钉成可重跑断言（`$nodes`/`$pipe` 为 NULL、`$edges` 14×4、`$param_set$ids()` 35 条、`$param_set$values` **已经装了 28 条默认值不是空 list**、`encode.method = "treatment"` 能设且能 train、`predict_newdata` 可用而 `predict(..., type=)` 会报 `Unknown parameters: type`）。
+
 ### 已知空白（记下来，下一轮开刀）
 - 幻觉键体检只查**键**，不查**参数名与类型**。baseline 里 `po("missind", affects = "numerics")`、`po("scale", which = "numerics")`、`lrn("classif.ranger", respect.ui = TRUE)` 三个参数名全是编的（实测可用：`affect_columns`；`scale` 的参数只有 `center/scale/robust/affect_columns`，`which` 反而是 `missind` 的参数；`respect.unordered.factors`），探针一声不响。把它钉进 `examples/EXAMPLE.md` 的"边界"一节，避免读者以为过了探针就能照抄。
 - 双向下放目前只有 2 个 prompt × 2 条件的原文入库（其余 4 个 prompt 的 A/B 只留下断言分数）。
