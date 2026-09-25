@@ -5,12 +5,15 @@
 [![Agent Skills](https://img.shields.io/badge/Agent%20Skills-ml--mlr3-blueviolet)](SKILL.md)
 [![gates](https://github.com/zhjx19/ml-mlr3/actions/workflows/gates.yml/badge.svg)](https://github.com/zhjx19/ml-mlr3/actions/workflows/gates.yml)
 [![Live Verify](https://img.shields.io/badge/verify_examples.R-19%2F19%20PASS-brightgreen)](#验证与测试)
+[![Hallucination audit](https://img.shields.io/badge/documented_examples-169%20keys%2C%200%20hallucinated-brightgreen)](examples/EXAMPLE.md)
 [![Evals](https://img.shields.io/badge/evals-6%20prompts%20%2B%20assertions-orange)](#验证与测试)
 [![GitHub](https://img.shields.io/badge/GitHub-zhjx19%2Fml--mlr3-black)](https://github.com/zhjx19/ml-mlr3)
 [![skills.sh](https://skills.sh/b/zhjx19/ml-mlr3)](https://skills.sh/zhjx19/ml-mlr3)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
 **它把「随手就能写错的 mlr3 建模代码」变成「数据划分、防泄露、调参、最终评估全程守规矩的可复现流程」。**
+
+**30 秒看证据**：两个建模 prompt，各写一遍"无 skill 的典型答案"和"按本 skill 的答案"，再用两把尺子量。典型答案一侧：**6 项纪律违规全 FAIL**（常见种子 `set.seed(42)`、开发期就把测试集切出来直评、把随机 CV 当时序重抽样）+ **8 个字典里根本不存在的键**（`po("imputehci")`、`rsmp("cs")`、`tsk("classif", formula=)`、`msr("classif.kappa")` 等，照抄必报错）。按 skill 写的一侧：**9/9 断言 PASS，0 幻觉键**。对照原文、逐条输出与重跑命令见 **[examples/EXAMPLE.md](examples/EXAMPLE.md)**。
 
 [它解决什么问题](#它解决什么问题) · [它会交付什么](#它会交付什么) · [快速开始](#快速开始) · [触发方式](#触发方式) · [安全边界](#安全边界) · [验证与测试](#验证与测试)
 
@@ -108,7 +111,11 @@ ml-mlr3/
 │   └── advanced-workflows.md  # 5 大进阶工作流（调优benchmark/图调参/不平衡/联合调优/早停）
 ├── scripts/
 │   ├── verify_examples.R      # 骨架回归：19 个案例一键实跑（含字典探针，防文档写回已移除的 API）
+│   ├── check_answer_api.R     # 幻觉键体检：抓回答里字典中不存在的 lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()
 │   └── run_evals.mjs          # evals 断言评分器（零依赖 Node）
+├── examples/
+│   ├── EXAMPLE.md             # 证据件：无/有 skill 双向回放 + 两把尺子的原始输出 + 重跑命令
+│   └── replay/                # 四份真实对照答案（baseline-* / skilled-*），可被上面两个评分器直接吃
 ├── evals/outputs/             # 评测回答存放处（eval-<id>.md）
 └── .github/workflows/
     └── gates.yml              # CI：全量 19 例（ubuntu + windows）+ 断言引擎自检
@@ -148,7 +155,7 @@ Rscript scripts/verify_examples.R
 === 汇总：19/19 PASS ===
 ```
 
-**CI 门禁 ≠ 免跑凭证。** `.github/workflows/gates.yml` 在每次 push / PR 上自动做两件事：装好 `mlr3verse` 依赖树后**全量**跑 19 例（ubuntu + windows 双平台，不砍案例、不砍折数、不砍预算），再跑断言引擎自检。硬依赖（`e1071` / `ranger` / `xgboost` / `bestNormalize`）装不上直接红；可选依赖（`ps` / `mlr3tuningspaces`）缺失由脚本记 SKIP，汇总行会点名，不算失败。
+**CI 门禁 ≠ 免跑凭证。** `.github/workflows/gates.yml` 在每次 push / PR 上自动做三件事：装好 `mlr3verse` 依赖树后**全量**跑 19 例（ubuntu + windows 双平台，不砍案例、不砍折数、不砍预算）→ 给全部文档示例做一次幻觉键体检 → 跑断言引擎自检。硬依赖（`e1071` / `ranger` / `xgboost` / `bestNormalize`）装不上直接红；可选依赖（`ps` / `mlr3tuningspaces`）缺失由脚本记 SKIP，汇总行会点名，不算失败。
 
 但**改动示例代码后仍须本机实跑一遍**（约 5 分钟），并把通过率写进 CHANGELOG——CI 只证明"这两个平台、这个时点的 CRAN 快照"跑得通，而你交付给用户的环境是你自己的机器；两者的实测记录不能互相顶替。
 
@@ -163,6 +170,14 @@ node scripts/run_evals.mjs              # 逐断言评分，任一 FAIL 退出�
 
 - **A 组**（按本 skill 纪律作答 ×6）：26 断言全 PASS——skill 教的写法全部通过红线审计
 - **B 组**（模拟无 skill 的典型错误 ×6，见 `evals/outputs/negative/`）：12 FAIL 全部抓获——常见种子、测试集直评、图外 SMOTE、时序随机 CV、没量资源就开满并行、嵌套重抽样概念混淆一个都跑不掉
+
+**幻觉键体检**（断言引擎的补尺）。断言只查纪律，查不出"代码写得像模像样但 `po("imputehci")` 这个键压根不存在"：
+
+```bash
+Rscript scripts/check_answer_api.R examples/replay/skilled-eval-1.md examples/replay/baseline-eval-1.md
+```
+
+它把回答里所有 `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` 的首参逐个对着 mlr3verse 字典探测，键不存在就点名并附字典自己的 "Did you mean" 提示，退出码 1。本机实测：`baseline-*` 两份 4+4 个幻觉键全部被抓；把 `SKILL.md` + 全部 `references/` + A 组 6 份 + `examples/replay/skilled-*` 一起喂进去，**169 个唯一键 0 幻觉**。CI 每次 push 都做这同一次体检——skill 教的代码哪天因为上游改名而失效，门禁会先红，而不是等用户投诉。
 
 ## 致谢
 

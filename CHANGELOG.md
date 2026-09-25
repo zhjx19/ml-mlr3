@@ -2,6 +2,17 @@
 
 本仓库遵循「发版讲清为什么改」的迭代纪律：每个版本记录动机，不只是改动清单。
 
+## [2.3.0] — 2026-09-26 · 把"证据"变成仓库里的可见产物
+
+### Added
+- **`examples/EXAMPLE.md` + `examples/replay/`（四份真实对照答案）**。为什么改：上一轮的活体尺量出两个问题——README 只有分数没有产物，新用户 30 秒内看不到"装了它写的代码长什么样"；而仓库里最值钱的对照实验（baseline vs skilled）躺在项目临时目录，别人既看不到也重跑不了。现在两份 baseline、两份 skilled 原文入库，README 首屏一段"30 秒看证据"直接给数字（典型答案 6 项纪律违规 + 8 个幻觉键；按 skill 写的 9/9 PASS + 0 幻觉键），并附两条可粘贴的重跑命令。
+- **`scripts/check_answer_api.R`（幻觉键体检）**。为什么改：断言引擎量的是**纪律**，它看不见另一种更致命的失败——代码写得像模像样、断言也全 PASS，但 `po("imputehci")` / `rsmp("cs")` / `tsk("classif", formula=)` / `msr("classif.kappa")` 这些键在 mlr3verse 字典里压根不存在，用户一跑就报错。脚本把回答里 `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` 的首参逐个用 `$has()` 定性（不用 `$get()`，避免 `po("learner")` 这类"键存在但构造器有必填参数"被误判），不存在时再 `$get()` 一次把字典自己的 "Did you mean" 提示捞出来；参数支持 glob（windows CI 的 pwsh 不展开通配符）。实测：`baseline-*` 16 个唯一键里 8 个幻觉，`skilled-*` 19 个键 0 幻觉；`SKILL.md` + 全部 `references/` + A 组 6 份共 169 个键 0 幻觉。
+- **CI 第三道门禁**：`gates.yml` 在骨架回归之后跑一次全库幻觉键体检（`SKILL.md` + `references/**` + `evals/outputs/eval-*.md` + `examples/replay/skilled-*.md`，允许 0 个幻觉键）。为什么加：skill 教的键名靠上游改名而腐烂是真实风险（本轮已见过 `ppl("greplicate")` 迁移），只靠人记得去探测等于没有防线；现在哪天上游改名，门禁先红，而不是等用户投诉"示例跑不通"。README 加 `169 keys, 0 hallucinated` 徽章。
+
+### 已知空白（记下来，下一轮开刀）
+- 幻觉键体检只查**键**，不查**参数名与类型**。baseline 里 `po("missind", affects = "numerics")`、`po("scale", which = "numerics")`、`lrn("classif.ranger", respect.ui = TRUE)` 三个参数名全是编的（实测可用：`affect_columns`；`scale` 的参数只有 `center/scale/robust/affect_columns`，`which` 反而是 `missind` 的参数；`respect.unordered.factors`），探针一声不响。把它钉进 `examples/EXAMPLE.md` 的"边界"一节，避免读者以为过了探针就能照抄。
+- 双向下放目前只有 2 个 prompt × 2 条件的原文入库（其余 4 个 prompt 的 A/B 只留下断言分数）。
+
 ## [2.2.1] — 2026-09-26 · 过尺第二轮：把门禁接到线上 + 正文缺陷逐条现场复核
 
 ### Added

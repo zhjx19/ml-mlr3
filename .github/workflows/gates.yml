@@ -1,8 +1,9 @@
 name: gates
 
-# 两道门禁：
+# 三道门禁：
 #   1) R 骨架回归 —— 全量 19 例实跑（scripts/verify_examples.R）
-#   2) 断言引擎自检 —— 无/有 skill 两侧的评测断言不能互相漏检（scripts/run_evals.mjs --selftest）
+#   2) 幻觉键体检 —— 文档示例与 skilled 回放里出现的每个字典键都必须真实存在（scripts/check_answer_api.R）
+#   3) 断言引擎自检 —— 无/有 skill 两侧的评测断言不能互相漏检（scripts/run_evals.mjs --selftest）
 # 可选依赖（ps / mlr3tuningspaces）缺失时脚本记为 SKIP，不算失败；硬依赖装不上则直接红。
 
 on:
@@ -46,6 +47,9 @@ jobs:
 
       - name: Run skeleton regression (19 cases)
         run: Rscript scripts/verify_examples.R
+
+      - name: Hallucinated-key audit over every documented example (0 allowed)
+        run: Rscript scripts/check_answer_api.R SKILL.md "references/*.md" "references/feature-engineering/*.md" "evals/outputs/eval-*.md" "examples/replay/skilled-*.md"
 
       - name: On failure, dump session info for triage
         if: failure()
