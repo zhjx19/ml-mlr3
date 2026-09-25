@@ -16,6 +16,10 @@ suppressPackageStartupMessages({
   library(data.table)
 })
 
+skip = \(why) stop(structure(list(message = why, call = NULL),
+  class = c("skipCondition", "error", "condition")))
+envir_ref = new.env(parent = emptyenv())   # run_case 内部传递 SKIP 原因
+
 run_case = \(name, code, no_warn = FALSE) {
   status = tryCatch(
     {
@@ -27,9 +31,16 @@ run_case = \(name, code, no_warn = FALSE) {
       }
       "PASS"
     },
-    error = \(e) paste("FAIL:", conditionMessage(e))
+    error = \(e) {
+      if (inherits(e, "skipCondition")) {
+        assign("last_skip", conditionMessage(e), envir = envir_ref)
+        "SKIP"
+      } else paste("FAIL:", conditionMessage(e))
+    }
   )
-  cat(sprintf("[%s] %s\n", status, name))
+  extra = if (identical(status, "SKIP") && !is.null(envir_ref$last_skip)) paste0(" — ", envir_ref$last_skip) else ""
+  if (identical(status, "SKIP")) envir_ref$last_skip = NULL
+  cat(sprintf("[%s] %s%s\n", status, name, extra))
   setNames(status, name)
 }
 
@@ -349,12 +360,133 @@ results = c(
     stopifnot(!exists("greplicate"))
     stopifnot(!("pima" %in% mlr_tasks$keys()))
     TRUE
+  }),
+
+  ## PipeOp 类型前置：文档里点明的三条约束必须真实成立（实测反证已在 references/feature-engineering.md §4）
+  run_case("PipeOp 类型前置·splines/boxcox/subsample/select", {
+    set.seed(5127)
+    d_p = data.table(x1 = rgamma(120, 2, 2), x2 = rnorm(120) * 10 + 50,
+                     xn = rnorm(120) - 3, x_int = sample(1:20, 120, TRUE),
+                     g = factor(sample(c("low", "mid", "high"), 120, TRUE)))
+    d_p$y = factor(ifelse(d_p$x1 > median(d_p$x1), "a", "b"))
+    t_p = as_task_classif(d_p, target = "y", positive = "a")
+    errored = \(expr) inherits(tryCatch(force(expr), error = identity), "error")
+    # 1) splines：默认 affect_columns = selector_all() → 遇 factor 崩；限定 numeric 才可用
+    stopifnot(errored(po("splines", type = "natural", df = 5)$train(list(t_p))))
+    sp = po("splines", type = "natural", df = 5, affect_columns = selector_type(c("numeric", "integer")))
+    t_sp = sp$train(list(t_p))[[1L]]
+    stopifnot(all(paste0("x1.splines.", 1:5) %in% t_sp$feature_names))
+    stopifnot(errored(po("splines", type = "b-spline")))          # type 只有 natural / polynomial
+    stopifnot(errored(po("splines", knots = 3)))                  # knots 必须是 list
+    # 2) boxcox 要求正值，yeojohnson 可处理负值
+    stopifnot(errored(po("boxcox", affect_columns = selector_name("xn"))$train(list(t_p))))
+    yj = po("yeojohnson", affect_columns = selector_name("xn"))
+    stopifnot(!is.null(yj$train(list(t_p))))
+    # 3) subsample：stratify = TRUE 必须配 use_groups = FALSE
+    stopifnot(errored(po("subsample", frac = 0.5, stratify = TRUE)$train(list(t_p))))
+    ss = po("subsample", frac = 0.5, stratify = TRUE, use_groups = FALSE)
+    stopifnot(ss$train(list(t_p))[[1L]]$nrow == 60L)
+    # 4) po("select") 的 selector 必须是函数
+    stopifnot(errored(po("select", selector = c("x1", "x2"))))
+    sel = po("select", selector = selector_name(c("x1", "x2")))
+    stopifnot(identical(sel$train(list(t_p))[[1L]]$feature_names, c("x1", "x2")))
+    TRUE
+  }),
+
+  ## selector 语义：integer 不等于 numeric；$state$affected_cols 不等于"真正被变换的列"
+  run_case("selector·integer 与 affected_cols 语义", {
+    d_s = data.table(y = factor(rep(c("a", "b"), each = 20)), xi = as.integer(1:40),
+                     xd = as.numeric(1:40), gf = factor(rep(c("p", "q"), 20)))
+    t_s = as_task_classif(d_s, target = "y", positive = "a")
+    stopifnot(identical(unname(t_s$feature_types[t_s$feature_types$id == "xi", ]$type), "integer"))
+    p_num = po("scale", affect_columns = selector_type("numeric")); p_num$train(list(t_s))
+    p_ni = po("scale", affect_columns = selector_type(c("numeric", "integer"))); p_ni$train(list(t_s))
+    stopifnot(!("xi" %in% p_num$state$affected_cols))             # selector_type("numeric") 漏掉整数列
+    stopifnot("xi" %in% p_ni$state$affected_cols)
+    # 默认 affect_columns 把 factor 列也列为候选，但实际原样透传 → 该字段不能当"生效证据"
+    p_def = po("scale"); t_def = p_def$train(list(t_s))[[1L]]
+    stopifnot("gf" %in% p_def$state$affected_cols)
+    stopifnot(identical(as.character(t_def$data()$gf), as.character(d_s$gf)))
+    stopifnot(is.numeric(t_def$data()$xi))                        # 默认下整数列确实被缩放为 numeric
+    # 符号类 selector 不在 mlr3verse 的导出集里（用导出集判断，不受 search path 污染）
+    exp_v = getNamespaceExports("mlr3verse")
+    exp_p = getNamespaceExports("mlr3pipelines")
+    sign_sel = c("selector_positive", "selector_negative", "selector_non_negative",
+      "selector_non_positive", "selector_non_zero", "selector_non_missing")
+    stopifnot(all(sign_sel %in% exp_p), !any(sign_sel %in% exp_v))
+    stopifnot("pos" %in% exp_v, !("neg" %in% exp_p))   # neg() 根本不存在，取反用 selector_invert
+    d_pos = data.table(y = factor(rep(c("a", "b"), each = 6)), xp = c(1, 2, 3, 4, 5, 6),
+                       xn = -c(1, 2, 3, 4, 5, 6), zl = c(0, 1, 0, 1, 0, 1))
+    t_pos = as_task_classif(d_pos, target = "y", positive = "a")
+    stopifnot(identical(mlr3pipelines::selector_positive()(t_pos), "xp"))
+    stopifnot(identical(mlr3pipelines::selector_negative()(t_pos), "xn"))
+    stopifnot(identical(mlr3pipelines::selector_non_negative()(t_pos), c("xp", "zl")))
+    TRUE
+  }),
+
+  ## 文档签名冒烟：references/feature-engineering.md §6 与 references/tuning.md §1.3 的写法必须能训练
+  run_case("文档签名·图调参与 lts 预置空间", {
+    if (!requireNamespace("mlr3tuningspaces", quietly = TRUE))
+      skip("mlr3tuningspaces 未安装（文档已注明需单独安装）")
+    set.seed(9137)
+    d_g = data.table(y = factor(rep(c("a", "b"), 60)), x1 = rnorm(120), x2 = rt(120, 3),
+                     g = factor(sample(c("p", "q", "r"), 120, TRUE)))
+    t_g = as_task_classif(d_g, target = "y", positive = "a")
+    # ranger / svm 本体不吃 factor 列（实测报 "unsupported feature types: factor"），
+    # 单学习器用例只给数值特征 task；带 factor 的 t_g 留给走 encode 的图用例。
+    t_num = t_g$clone(deep = TRUE)$select(c("x1", "x2"))
+    suppressPackageStartupMessages(library(mlr3tuningspaces))
+    # §1.3：lts() 返回 TuningSpace R6；$learner 只是 learner id 字符串，真正的 learner 靠 $get_learner()
+    lts_obj = lts("classif.ranger.default")
+    stopifnot(inherits(lts_obj, "TuningSpace"), is.character(lts_obj$learner))
+    stopifnot(length(lts_obj$values) > 0L)
+    lrn_pre = lts_obj$get_learner()
+    stopifnot(inherits(lrn_pre, "LearnerClassifRanger"))
+    stopifnot(all(names(lrn_pre$param_set$values) %in% lrn_pre$param_set$ids()))
+    # get_learner() 每次给独立克隆：改了 a 不应影响 b（红线 2 的 R6 引用纪律同样适用于预置空间）
+    lrn_b = lts_obj$get_learner()
+    lrn_pre$param_set$values$num.trees = 7L
+    stopifnot(inherits(lrn_b$param_set$values$num.trees, "TuneToken"))
+    # 未编码就喂 factor：ranger 直接报错，说明预置空间不替你处理类型（必须配 encode / robustify）
+    stopifnot(inherits(tryCatch(lrn_pre$train(t_g), error = identity), "error"))
+    at_r = auto_tuner(tuner = tnr("random_search"), learner = lrn_pre,
+      resampling = rsmp("cv", folds = 3), measure = msr("classif.ce"), term_evals = 2)
+    at_r$train(t_num)
+    stopifnot(nrow(at_r$tuning_result) == 1L)
+    # svm.default 空间仍受条件参数前置约束：不设 type 直接 train 必须报断言错
+    mk_svm = \(extra) {
+      l = lts("classif.svm.default")$get_learner()
+      for (nm in names(extra)) l$param_set$values[[nm]] = extra[[nm]]
+      auto_tuner(tuner = tnr("random_search"), learner = l,
+        resampling = rsmp("cv", folds = 3), measure = msr("classif.ce"), term_evals = 1)
+    }
+    errored = \(expr) inherits(tryCatch(force(expr), error = identity), "error")
+    stopifnot(errored(mk_svm(list())$train(t_num)))                # 不设 type → 断言失败
+    at_s = mk_svm(list(type = "C-classification", cost = 1))
+    at_s$train(t_num)
+    stopifnot(nrow(at_s$tuning_result) == 1L)
+    # §6：图 + PipeOp to_tune + svm（显式 type/kernel）
+    glrn = (po("encode", method = to_tune(c("treatment", "one-hot"))) %>>%
+      po("pca", rank. = to_tune(2, 5)) %>>%
+      lrn("classif.svm", type = "C-classification", kernel = "radial",
+        cost = to_tune(1e-2, 1e2, logscale = TRUE), predict_type = "prob")) |> as_learner()
+    at_g = auto_tuner(tuner = tnr("random_search"), learner = glrn,
+      resampling = rsmp("cv", folds = 3), measure = msr("classif.ce"), term_evals = 2)
+    at_g$train(t_g)
+    tun_names = names(at_g$tuning_result)
+    stopifnot(all(c("encode.method", "pca.rank.", "classif.svm.cost") %in% tun_names))
+    stopifnot(at_g$tuning_result[["pca.rank."]] >= 2L && at_g$tuning_result[["pca.rank."]] <= 5L)
+    stopifnot(at_g$tuning_result[["encode.method"]] %in% c("treatment", "one-hot"))
+    TRUE
   })
 )
 
 ## 汇总
-fails = names(results)[results != "PASS"]
-cat(sprintf("\n=== 汇总：%d/%d PASS ===\n", sum(results == "PASS"), length(results)))
+fails = names(results)[results != "PASS" & results != "SKIP"]
+skips = names(results)[results == "SKIP"]
+cat(sprintf("\n=== 汇总：%d/%d PASS", sum(results == "PASS"), length(results)))
+if (length(skips) > 0) cat(sprintf("，%d SKIP（%s）", length(skips), paste(skips, collapse = "、")))
+cat(" ===\n")
 if (length(fails) > 0) {
   for (f in fails) cat("FAIL:", f, "->", results[[f]], "\n")
   quit(status = 1)
