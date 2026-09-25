@@ -28,7 +28,8 @@ glrn_ranger = ppl("robustify") %>>%
 cores = future::availableCores()
 mem = ps::ps_system_memory()          # percent 高就说明机器在忙，下调 workers
 set_threads(list(glrn_glmnet, glrn_ranger), n = 1L)  # 外层按折并行 → 内部线程压成 1
-future::plan("multisession", workers = min(cores - 1L, 8L))
+future::plan("multisession",
+  workers = min(cores - 1L, if (mem$percent > 60) 4L else 8L))
 
 # 4. 训练集内 benchmark 比较两个算法
 design = benchmark_grid(

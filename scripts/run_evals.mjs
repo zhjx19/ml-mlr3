@@ -177,7 +177,7 @@ function selftest() {
     "cores = future::availableCores()",
     "mem = ps::ps_system_memory()",
     "set_threads(glrn, n = 1L)   # 外层按折并行 → learner 内部线程压成 1",
-    "future::plan(\"multisession\", workers = min(cores - 1L, 8L))",
+    "future::plan(\"multisession\", workers = min(cores - 1L, if (mem$percent > 60) 4L else 8L))",
     "# 模型定型后询问用户：是否允许对保留测试集做一次最终评估？（split$test 此前不得使用）",
     "```",
   ].join("\n");
