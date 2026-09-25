@@ -1,6 +1,6 @@
 {
   "name": "ml-mlr3",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "Discipline-hardened mlr3verse tabular machine learning skill: data spending, leak-free PipeOp preprocessing, auto_tuner tuning, nested resampling, test-set authorization, plus verify/evals validation assets",
   "author": {
     "name": "zhjx19"

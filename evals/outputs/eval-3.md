@@ -1,6 +1,6 @@
 # 回答：月度销售数据（时间序列）的划分与重抽样
 
-时间序列**禁止随机划分和随机 CV**——随机打乱后模型会用未来数据预测过去。先说两个容易踩的坑（mlr3 1.7.1 实测）：
+时间序列**禁止随机划分和随机 CV**——随机打乱后模型会用未来数据预测过去。先说两个容易踩的坑（按技能包的现场探测纪律核对）：
 
 1. **内置重抽样字典里没有 `rolling_origin`**（只有 bootstrap/custom/custom_cv/cv/holdout/insample/loo/repeated_cv/subsampling），网上旧教程的 `rsmp("rolling_origin")` 会直接报 `not found in DictionaryResampling`。
 2. **`order` 角色只作时间标记，不会让随机 CV / holdout 按时间切分**——实测设置后 holdout 的测试集照样散布在中段。

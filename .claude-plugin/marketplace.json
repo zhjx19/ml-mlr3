@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "Discipline-hardened mlr3verse tabular machine learning skill for Claude Code",
-    "version": "2.1.1"
+    "version": "2.2.0"
   },
   "plugins": [
     {

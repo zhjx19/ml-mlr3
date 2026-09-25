@@ -2,6 +2,39 @@
 
 本仓库遵循「发版讲清为什么改」的迭代纪律：每个版本记录动机，不只是改动清单。
 
+## [2.2] — 2026-09-26 · 以 TMwR→mlr3 全量复现为证据源回灌 + 现场探测取代版本对照表
+
+### Changed
+- **版本锚定改为「现场探测纪律 + 一行实测记录」**。为什么改：上一轮把上游包 NEWS 的增删条目连同版本号抄进了 SKILL.md，形成一张需要持续维护、且会随环境腐烂的版本对照表——用户明确指出这类版本号信息不必进技能。现在规则只有一条：照抄任何对象名/参数名前先当场探测（`mlr_pipeops$keys()`、`$param_set$ids()`、`getNamespaceExports()`、`names(formals(...))`）。全文只保留一行实测记录（日期 + 环境 + 通过率），它回答"这些示例最近何时、在什么环境跑通"，跑通回归后刷新。
+- **`set_threads()` / 并行纪律写进红线 5**。为什么改：20 章复现里并行只授权了一次（Ch13），暴露出技能只写"要授权"却没写授权后怎么正确地并行——粒度是重抽样迭代（折），且外层并行下必须把 learner 内部线程压成 1，否则 N 个 worker 各开满核互相争抢。同时记录一个静默反向陷阱：`set_threads(learner, nthreads = 1)` 的错名被 `...` 吞掉，`n` 落到默认值 `availableCores()`，线程反而被设成满核（实测 20）。
+- **`resampling.md` 新增 §10（bootstrap / 报错取消 / 分层口径 / 逐折表）**，§1 选择矩阵加"想要 bootstrap"一行。为什么改：这几条都是复现中真实付出过代价的事实，且今天在现网全部可复现——bootstrap 分析集携带重复行号，绝大多数 PipeOp 在 `$train()` 里断言失败（同一 task 换普通 learner 无恙）；`resample()` 一折出错即取消全部迭代、不返回部分结果；分层不是 `rsmp()` 的参数而是 `stratum` 列角色（实测各折正类占比 sd 0.1095 → 0.0075）；`$score()`（逐折）与 `$aggregate()`（标量均值）是两个口径，`$score()` 形参里没有 `aggregate` 开关。
+
+### Fixed
+- **「错误处理与日志」整段写法在现网运行即报错**。为什么改：原文 `learner$encapsulate = c(train = , predict = )` 撞 `cannot change value of locked binding for 'encapsulate'`（`encapsulate` 是方法名），`learner$fallback = ...`、`learner$encapsulation = ...`、`lrn(..., fallback = )` 一律报 `Field/Binding is read-only`。改为 `learner$encapsulate("evaluate", default_fallback(learner))`，并记下 `fallback` 形参无默认值（不传即在调用当下断言失败）、`when` 只接受函数或 `NULL`。此前 14 例回归抓不到它，因为回归里没有任何用例碰过封装 API——现已钉成断言。
+- **`po("splines", df = 5)` 直接进图**：默认作用全部列，遇 factor 崩在内部 `quantile()`；改为必须带 `affect_columns`，并写下 `type` 只接受 `polynomial/natural`、`knots` 必须是 list。
+- **`classif.svm` 调优示例缺 `type`/`kernel`**：`cost`/`gamma` 是条件参数，不显式设就在 `auto_tuner$train()` 第一步断言失败；三处示例（SKILL.md、tuning.md §1.1/§4、feature-engineering.md §6）全部补齐。
+- **`lts()` 语义写错**：原文当作返回搜索空间用，实际返回 `TuningSpace` R6（`$learner` 是 id 字符串），要拿 learner 得 `$get_learner()`；且预置空间仍不替你满足 SVM 的条件参数前置。
+- **`mlr_pipeops$keys()` 被写成裸 `po()`/`ppl()`**：裸调用报 `cannot coerce type 'environment' to vector`，改为字典探测的正确写法。
+
+### Added
+- **Selector 一节重写**：selector 是 `function(Task) -> character`；`mlr3verse` 只再导出 11 个 `selector_*`，6 个符号类需 `mlr3pipelines::` 前缀，`neg()` 不存在；`selector_type("numeric")` 不含 `integer`；`$state$affected_cols` 不等于真正被变换的列。
+- **PipeOp 类型前置表**（splines/boxcox/subsample/select 各自的崩溃条件与报错原文）、`ranger`/`xgboost` 拒绝因子特征的实测报错、日期时间列处理（`po("datefeatures")` 的参数与 `<原列名>.<特征名>` 命名、Date/POSIXct 已可直接插补、`po("materialize")` 无参数、`task$…$materialize_view()`）、`mlr3tuningspaces` 预置空间用法、早停/内部验证分数（`set_validate()` + `msr("best_valid_score"/"internal_valid_score", select = , minimize = )`）、`learner$deadline`。
+- **回归用例 14 → 18 例**，并加 SKIP 语义（可选依赖缺失记为 SKIP 而非伪装 PASS）。为什么改：本轮所有新增/修正事实都必须有可重跑的钉子的——每个新断言都对应上面一条正文说法。
+
+### Removed
+- 淘汰/不存在的写法从正文中清掉：独立函数 `greplicate()`（改 `ppl("greplicate", graph = , n = )`）、`tsk("pima")`、`fs("forward")`/`fs("backward")`/`fs("bonu")`、`task$correlation()`、`task$cols()`/`$nrow()`/`$row_ids()` 函数式访问、learner 构造参数 `validate =`，以及「新版已移除/新版需用」这类依赖版本对照表的措辞（改为绝对陈述）。
+
+### 未采纳（证据不足）
+- 复现笔记里「重复 CV 的标准误收缩比实测 0.57、高于理论下界 1/√5」一条：本轮在两种 SE 定义（naive 全折 `sd/√25`、按 repeat 分块 `sd(均值)/√5`）下都复现不出该方向（实测 0.0240 与 0.0185，比值 1.299 且都低于 0.447），加之 `$score()` 不提供 repeat 列、分块口径只能自己假定迭代号连续。**宁可不写**，留作下轮带 mlr3 官方 SE 估计器再核。
+
+### 验证
+- `Rscript scripts/verify_examples.R` → 18/18 PASS（exit 0，无 SKIP），2026-09-26 于 R 4.6.1 / mlr3 1.8.0 / mlr3pipelines 0.12.0 / mlr3tuning 1.7.0 / mlr3fselect 1.7.0 / paradox 1.0.1
+- `node scripts/run_evals.mjs --selftest` → 引擎自检 PASS（黄金 0 FAIL、违规 5/5、未闭合 fence 5/5）
+- `node scripts/run_evals.mjs` → 26 PASS / 0 FAIL / 0 WARN（6 个回答）
+
+### Meta
+- `.claude-plugin/plugin.json` 2.1.0 与 `marketplace.json` 2.1.1 此前各说各话，统一为 2.2.0。为什么改：两个通道版本号不一致，安装方无法判断自己拿到的是哪一版。
+
 ## [2.1.1] — 2026-09-14 · 协议切换为 Apache-2.0
 
 ### Changed
