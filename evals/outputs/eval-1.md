@@ -9,7 +9,7 @@ library(data.table)
 set.seed(6314)
 churn = fread("churn.csv")
 
-# 1. 任务与数据花费：一次性划分，冻结 split
+# 1. 任务与数据划分：一次性划分，冻结 split
 task = as_task_classif(churn, target = "churn", positive = "yes")
 split = partition(task, ratio = 0.7)
 train_task = task$clone(deep = TRUE)$filter(split$train)

@@ -157,7 +157,7 @@ at = auto_tuner(
 at$train(task, row_ids = split$train)
 at$tuning_result
 
-# 最终模型在原始测试集上预测
+# 最终模型在原始测试集上预测——红线 1：必须先征得用户授权，且只评估一次
 pred_test = at$predict(task, row_ids = split$test)
 ```
 
@@ -192,7 +192,7 @@ set.seed(4817)
 at$train(task, row_ids = split$train)
 at$tuning_result
 
-pred = at$predict(task, row_ids = split$test)
+pred = at$predict(task, row_ids = split$test)   # 红线 1：获用户授权后才执行这一次
 pred$score(msr("classif.auc"))
 ```
 
@@ -253,4 +253,4 @@ at$tuning_result   # 含 internal_tuned_values 列出每轮早停选出的 nroun
 - `eval_metric = "logloss"`：内层用连续概率指标（比离散 error 更早捕捉过拟合趋势）
 - `set_validate(glrn, validate = 0.2)`：用 20% 训练数据作内部验证集——只能这样设置，learner 构造参数中已无 `validate`
 
-**注**：`set_validate(..., validate = "test")` 可复用外层测试集提升数据利用率，但会导致数据泄露并高估泛化性能，仅限计算资源极度受限时的探索性分析。
+**`validate = "test"` 不用**：`set_validate(lrn, validate = "test")` 让早停直接拿**外层测试集**当验证集。它不会报错——实测在 5 折 CV 里把 `classif.auc` 从 0.7504 抬到 0.7924（`errors` 表 0 行，全程"健康"），静默把泛化估计做成乐观偏差。要提升数据利用率就调小验证比例（如 `validate = 0.1`）或改用嵌套重抽样报告无偏性能，别碰测试集（红线 1）。

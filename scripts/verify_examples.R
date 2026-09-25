@@ -557,6 +557,39 @@ results = c(
     }
 
     TRUE
+  }),
+
+  ## 文档口径回钉：numeric.md 的行规范化、SKILL.md 的依赖包提示、
+  ## advanced-workflows.md §5 的 validate = "test"「静默泄露」说法
+  run_case("文档口径·spatialsign 归属 / 依赖包 / validate='test' 静默", {
+    set.seed(4817)
+    # 1) spatialsign 属 mlr3pipelines 本体（不是 mlr3spatial 之类扩展），默认作用于全部列
+    sp_def = mlr_pipeops$get("spatialsign")
+    stopifnot("mlr3pipelines" %in% unlist(sp_def$packages))
+    stopifnot("PipeOpSpatialSign" %in% ls(asNamespace("mlr3pipelines")))
+    d_sp = data.table(y = factor(rep(c("a", "b"), each = 20)),
+                      pos = runif(40, 0.1, 5), mixed = rnorm(40))
+    t_sp = as_task_classif(d_sp, target = "y", positive = "a")
+    o_sp = po("spatialsign")$train(list(t_sp))[[1]]
+    stopifnot(all(c("pos", "mixed") %in% o_sp$feature_names))      # 含负值的列同样被变换
+    m_sp = as.matrix(o_sp$data(cols = c("pos", "mixed")))
+    stopifnot(max(abs(sqrt(rowSums(m_sp^2)) - 1)) < 1e-8)          # 行 L2 范数 = 1
+
+    # 2) classif.xgboost 要的是 xgboost 本体（学习器由 mlr3learners 提供），非 mlr3xgboost
+    pk_xgb = unlist(lrn("classif.xgboost")$packages)
+    stopifnot(all(c("mlr3learners", "xgboost") %in% pk_xgb))
+    stopifnot(!("mlr3xgboost" %in% pk_xgb))
+    stopifnot("mlr3mbo" %in% unlist(tnr("mbo")$packages))
+
+    # 3) validate = "test" 合法且**不报错**——所以它是静默泄露而非会被拦下的错误
+    l_leak = lrn("classif.xgboost", nrounds = 40L, early_stopping_rounds = 5L,
+                 eval_metric = "logloss", predict_type = "prob")
+    set_validate(l_leak, validate = "test")
+    stopifnot(identical(l_leak$validate, "test"))
+    rr_leak = resample(t_sp, l_leak, rsmp("cv", folds = 3L))
+    stopifnot(nrow(rr_leak$errors) == 0L)
+    stopifnot(is.finite(rr_leak$aggregate(msr("classif.auc"))))
+    TRUE
   })
 )
 

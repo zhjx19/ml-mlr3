@@ -4,13 +4,13 @@
 
 [![Agent Skills](https://img.shields.io/badge/Agent%20Skills-ml--mlr3-blueviolet)](SKILL.md)
 [![gates](https://github.com/zhjx19/ml-mlr3/actions/workflows/gates.yml/badge.svg)](https://github.com/zhjx19/ml-mlr3/actions/workflows/gates.yml)
-[![Live Verify](https://img.shields.io/badge/verify_examples.R-18%2F18%20PASS-brightgreen)](#验证与测试)
+[![Live Verify](https://img.shields.io/badge/verify_examples.R-19%2F19%20PASS-brightgreen)](#验证与测试)
 [![Evals](https://img.shields.io/badge/evals-6%20prompts%20%2B%20assertions-orange)](#验证与测试)
 [![GitHub](https://img.shields.io/badge/GitHub-zhjx19%2Fml--mlr3-black)](https://github.com/zhjx19/ml-mlr3)
 [![skills.sh](https://skills.sh/b/zhjx19/ml-mlr3)](https://skills.sh/zhjx19/ml-mlr3)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 
-**它把「随手就能写错的 mlr3 建模代码」变成「数据花费、防泄露、调参、最终评估全程守规矩的可复现流程」。**
+**它把「随手就能写错的 mlr3 建模代码」变成「数据划分、防泄露、调参、最终评估全程守规矩的可复现流程」。**
 
 [它解决什么问题](#它解决什么问题) · [它会交付什么](#它会交付什么) · [快速开始](#快速开始) · [触发方式](#触发方式) · [安全边界](#安全边界) · [验证与测试](#验证与测试)
 
@@ -107,11 +107,11 @@ ml-mlr3/
 │   ├── evaluation.md          # 指标、ROC/PRC/残差图、benchmark、最终评估
 │   └── advanced-workflows.md  # 5 大进阶工作流（调优benchmark/图调参/不平衡/联合调优/早停）
 ├── scripts/
-│   ├── verify_examples.R      # 骨架回归：18 个案例一键实跑（含字典探针，防文档写回已移除的 API）
+│   ├── verify_examples.R      # 骨架回归：19 个案例一键实跑（含字典探针，防文档写回已移除的 API）
 │   └── run_evals.mjs          # evals 断言评分器（零依赖 Node）
 ├── evals/outputs/             # 评测回答存放处（eval-<id>.md）
 └── .github/workflows/
-    └── gates.yml              # CI：全量 18 例（ubuntu + windows）+ 断言引擎自检
+    └── gates.yml              # CI：全量 19 例（ubuntu + windows）+ 断言引擎自检
 ```
 
 ## 验证与测试
@@ -143,11 +143,12 @@ Rscript scripts/verify_examples.R
 [PASS] selector·integer 与 affected_cols 语义
 [PASS] 文档签名·图调参与 lts 预置空间
 [PASS] 重抽样实测坑·bootstrap/封装兜底/分层/线程
+[PASS] 文档口径·spatialsign 归属 / 依赖包 / validate='test' 静默
 
-=== 汇总：18/18 PASS ===
+=== 汇总：19/19 PASS ===
 ```
 
-**CI 门禁 ≠ 免跑凭证。** `.github/workflows/gates.yml` 在每次 push / PR 上自动做两件事：装好 `mlr3verse` 依赖树后**全量**跑 18 例（ubuntu + windows 双平台，不砍案例、不砍折数、不砍预算），再跑断言引擎自检。硬依赖（`e1071` / `ranger` / `xgboost` / `bestNormalize`）装不上直接红；可选依赖（`ps` / `mlr3tuningspaces`）缺失由脚本记 SKIP，汇总行会点名，不算失败。
+**CI 门禁 ≠ 免跑凭证。** `.github/workflows/gates.yml` 在每次 push / PR 上自动做两件事：装好 `mlr3verse` 依赖树后**全量**跑 19 例（ubuntu + windows 双平台，不砍案例、不砍折数、不砍预算），再跑断言引擎自检。硬依赖（`e1071` / `ranger` / `xgboost` / `bestNormalize`）装不上直接红；可选依赖（`ps` / `mlr3tuningspaces`）缺失由脚本记 SKIP，汇总行会点名，不算失败。
 
 但**改动示例代码后仍须本机实跑一遍**（约 5 分钟），并把通过率写进 CHANGELOG——CI 只证明"这两个平台、这个时点的 CRAN 快照"跑得通，而你交付给用户的环境是你自己的机器；两者的实测记录不能互相顶替。
 

@@ -20,9 +20,9 @@ license: Apache-2.0
 
 ## API 现场校验（不背版本号）
 
-mlr3 生态迭代快，本技能不维护版本对照表：**版本号全文只出现在下面这一行实测记录里**，它回答"这些示例最近何时、在什么环境跑通"，不回答"哪个 API 从哪个版本起存在"。规则只有一条：**照抄任何对象名/参数名之前，先当场探测它是否存在**。示例的可执行契约由 `scripts/verify_examples.R`（18 例实跑）和 `scripts/run_evals.mjs`（静态断言）把守——改完示例代码这两个都必须重跑，跑通后刷新这行记录。
+mlr3 生态迭代快，本技能不维护版本对照表：**版本号全文只出现在下面这一行实测记录里**，它回答"这些示例最近何时、在什么环境跑通"，不回答"哪个 API 从哪个版本起存在"。规则只有一条：**照抄任何对象名/参数名之前，先当场探测它是否存在**。示例的可执行契约由 `scripts/verify_examples.R`（19 例实跑）和 `scripts/run_evals.mjs`（静态断言）把守——改完示例代码这两个都必须重跑，跑通后刷新这行记录。
 
-> 实测记录：2026-09-26 · R 4.6.1 / mlr3 1.8.0 / mlr3pipelines 0.12.0 / mlr3tuning 1.7.0 / mlr3fselect 1.7.0 / paradox 1.0.1 · `verify_examples.R` 18/18 PASS
+> 实测记录：2026-09-26 · R 4.6.1 / mlr3 1.8.0 / mlr3pipelines 0.12.0 / mlr3tuning 1.7.0 / mlr3fselect 1.7.0 / paradox 1.0.1 · `verify_examples.R` 19/19 PASS
 
 ```r
 mlr_learners$keys(); mlr_pipeops$keys(); mlr_measures$keys()
@@ -214,7 +214,7 @@ rr$aggregate(measures)
 
 ## ppl("robustify") 默认预处理管线
 
-**依赖包提示（防"运行即报错"）**：示例用到的模型/算子对应 R 包——`classif.glmnet`→`glmnet`、`classif.ranger`→`ranger`、`classif.kknn`→`kknn`、`classif.svm`→`e1071`（mlr3verse 默认附带，但其 `cost`/`gamma` 是条件参数，见「调优：auto_tuner」陷阱说明）、`po("smote")`→`smotefamily`、`yeojohnson` 分支→`bestNormalize`、ROC/PRC 可视化→`precrec`。运行前先确认已安装（缺则 `install.packages(...)`）；未安装的模型/分支改用可用替代（如未装 bestNormalize 就去掉 yeojohnson 分支）。
+**依赖包提示（防"运行即报错"）**：示例用到的模型/算子对应 R 包——`classif.glmnet`→`glmnet`、`classif.ranger`→`ranger`、`classif.kknn`→`kknn`、`classif.xgboost`→`xgboost`（注意是 `xgboost` 本身，学习器由 mlr3verse 附带的 `mlr3learners` 提供，`mlr3xgboost` 是另一套带预置调参空间的实现，装了会覆盖同名键）、`classif.svm`→`e1071`（mlr3verse 默认附带，但其 `cost`/`gamma` 是条件参数，见「调优：auto_tuner」陷阱说明）、`po("smote")`→`smotefamily`、`yeojohnson`/`boxcox` 分支→`bestNormalize`、ROC/PRC 可视化→`precrec`、`tnr("mbo")`→`mlr3mbo`（mlr3verse 已附带）。运行前先确认已安装（缺则 `install.packages(...)`）；未安装的模型/分支改用可用替代（如未装 bestNormalize 就去掉 yeojohnson 分支）。想核对某个键到底要哪个包：`mlr_learners$get("classif.xgboost")$packages`。
 
 一键稳健预处理的 `ppl("robustify")` 生成一个**含 14 个 PipeOp 的非线性 DAG**（非简单线性流），覆盖大多数缺失值插补和因子编码场景。按执行顺序的核心节点：
 
@@ -484,4 +484,4 @@ skill.md 保持精简；遇到以下具体需求时，读取对应知识文件�
 - [ ] 对复杂 GraphLearner 是否利用了 `ppl("branch")` 分支路由调参？
 - [ ] 不平衡处理（SMOTE 等）是否封装在图中并用 `auto_tuner` 确保每折独立采样？
 - [ ] 代码是否遵守全局 R 编码铁律（`=`、`|>`/`%>>%`、`\(x)`、`.by`）？
-- [ ] 示例代码改动后运行 `scripts/verify_examples.R`，18 个案例全 PASS？
+- [ ] 示例代码改动后运行 `scripts/verify_examples.R`，19 个案例全 PASS？

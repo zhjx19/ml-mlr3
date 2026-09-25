@@ -2,6 +2,30 @@
 
 本仓库遵循「发版讲清为什么改」的迭代纪律：每个版本记录动机，不只是改动清单。
 
+## [2.2.1] — 2026-09-26 · 过尺第二轮：把门禁接到线上 + 正文缺陷逐条现场复核
+
+### Added
+- **`.github/workflows/gates.yml`（CI 两道门禁）**。为什么改：这一轮"活体尺"量出的最大事故不是文档写错，而是**线上根本没在活**——本地已经推进到 10 个提交，`origin/main` 仍停在 12 天前的 v2.1.0，而 v2.1 的 SKILL.md 里那整段 `learner$encapsulate = c(...)` 是运行即报错的写法；换句话说本轮所有价值对真实用户是 0，且**没有任何一盏灯会报警**，因为没有 CI。现在：ubuntu + windows 双平台**全量**跑骨架回归（不砍案例、不砍折数、不砍预算），依赖树安装区分硬依赖（`e1071` / `ranger` / `xgboost` / `bestNormalize`，装不上直接红）与可选依赖（`ps` / `mlr3tuningspaces`，缺失由脚本记 SKIP 并在汇总行点名），失败时打印 `sessionInfo()`；另一个 job 跑 `node scripts/run_evals.mjs --selftest`。README 首屏加状态徽章。
+- **回归用例 19：「文档口径·spatialsign 归属 / 依赖包 / validate='test' 静默」**。为什么改：这一轮修正的三条正文说法都必须有可重跑的钉子——`po("spatialsign")` 属 mlr3pipelines 且默认作用于全部列（含负值列，行 L2 范数 = 1）、`classif.xgboost` 要的是 `xgboost` 本体而非 `mlr3xgboost`、`set_validate(..., validate = "test")` **不报错**（所以它是静默泄露，只能靠纪律拦，拦不住靠异常）。
+
+### Changed
+- **README 明确「CI ≠ 免跑凭证」**。为什么改：CI 一上线最容易被误读成"绿了就不用本地跑"。写清 CI 只证明"这两个平台、这个时点的 CRAN 快照"跑得通，改完示例仍须本机实跑并把通过率写进 CHANGELOG——两个环境的实测记录不能互相顶替。
+
+### Fixed
+- **`advanced-workflows.md` 两处 `at$predict(task, row_ids = split$test)` 缺红线 1 护栏**（§3 不平衡调优、§4 联合调优）。为什么改：`evaluation.md` §8 的同款代码前面写着"先停下询问用户，获得许可后"，而这两处只有一行"最终模型在原始测试集上预测"，直接照抄就等于教人开发期碰测试集。现各补一句行内护栏注释，与 SKILL.md 红线 1 的"获授权后的最终评估"口径对齐。
+- **`validate = "test"` 的措辞从"仅限资源极度受限时的探索性分析"改为"不用"**。为什么改：原文承认泄露却留了个许可口子，等于给红线 1 开了扇侧门；实测更说明它危险——5 折 CV 下把 `classif.auc` 从 0.7504 抬到 0.7924，`$errors` 表 0 行、`$aggregate()` 返回正常有限值，全程没有任何警告。给出替代口径（调小验证比例或走嵌套重抽样）而不是"少用"。
+- **SKILL.md 依赖包提示漏 `classif.xgboost`**。为什么改：`advanced-workflows.md` §3 与 `tuning.md` 的示例都用了它，而提示里只列了 glmnet / ranger / kknn / svm，缺 `xgboost` 时报错信息容易被误当成"要装 mlr3xgboost"。现场探测记录事实：`lrn("classif.xgboost")$packages` = `mlr3, mlr3learners, xgboost`——学习器由 mlr3verse 附带的 mlr3learners 提供，后备包是 `xgboost` 本身；顺带把 `tnr("mbo")`→`mlr3mbo`（mlr3verse 已附带）写进同一行，并给出通用探测式 `$packages`。
+- **"数据花费"这一误译全部改为"数据划分 / 测试集动用"**（README 首屏一句、`data-spending.md` 标题、`evals/outputs/eval-1.md` 注释）。为什么改：英文 data spending 指的是"测试集被动用了几次"，直译成"数据花费"在中文里读不出这层意思，而它恰好出现在最该读得懂的两处（首屏一句话定位、参考文件标题）。
+
+### 证伪（现场探测后不改）
+- 上一份过尺报告把 `references/feature-engineering/numeric.md` 的 `po("spatialsign")` 标成"归属写错（挂在 mlr3verse 名下）"。实测**证伪**：`PipeOpSpatialSign` 就在 `mlr3pipelines` 命名空间里，只 `library(mlr3pipelines)` 即可从字典取到（`mlr3spatial` 只负责空间任务/后端，不提供它），默认 `affect_columns = selector_all()`，混合符号列同样被行规范化、变换后行 L2 范数 = 1。原文正确，不改；把这条事实钉进用例 19，防下次"看起来像扩展包"的直觉再翻。
+
+### 验证
+- `Rscript scripts/verify_examples.R` → **19/19 PASS**（exit 0，无 SKIP），2026-09-26 于 R 4.6.1 / mlr3 1.8.0 / mlr3pipelines 0.12.0 / mlr3tuning 1.7.0 / mlr3fselect 1.7.0 / mlr3mbo 1.2.1 / mlr3tuningspaces 0.7.0 / paradox 1.0.1
+- `node scripts/run_evals.mjs --selftest` → 引擎自检 PASS（黄金 0 FAIL、违规 5/5、未闭合 fence 5/5）
+- `node scripts/run_evals.mjs` → A 组 6 个回答 26 PASS / 0 FAIL / 0 WARN；B 组阴性对照 12 FAIL 全部抓获
+- 线上对账：`main` 已推至含 CI 的提交，`v2.2.0` 标签已发布；`api.github.com` 取回的 v2.2.0 `SKILL.md`（487 行）确认含 `ps_system_memory` 新口径，旧报错写法只出现在"不要这样写"列
+
 ## [2.2] — 2026-09-26 · 以 TMwR→mlr3 全量复现为证据源回灌 + 现场探测取代版本对照表
 
 ### Changed
