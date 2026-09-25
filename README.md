@@ -3,6 +3,7 @@
 > *「模型代码谁都会写，难的是全程不偷偷摸一下测试集。」*
 
 [![Agent Skills](https://img.shields.io/badge/Agent%20Skills-ml--mlr3-blueviolet)](SKILL.md)
+[![gates](https://github.com/zhjx19/ml-mlr3/actions/workflows/gates.yml/badge.svg)](https://github.com/zhjx19/ml-mlr3/actions/workflows/gates.yml)
 [![Live Verify](https://img.shields.io/badge/verify_examples.R-18%2F18%20PASS-brightgreen)](#验证与测试)
 [![Evals](https://img.shields.io/badge/evals-6%20prompts%20%2B%20assertions-orange)](#验证与测试)
 [![GitHub](https://img.shields.io/badge/GitHub-zhjx19%2Fml--mlr3-black)](https://github.com/zhjx19/ml-mlr3)
@@ -108,7 +109,9 @@ ml-mlr3/
 ├── scripts/
 │   ├── verify_examples.R      # 骨架回归：18 个案例一键实跑（含字典探针，防文档写回已移除的 API）
 │   └── run_evals.mjs          # evals 断言评分器（零依赖 Node）
-└── evals/outputs/             # 评测回答存放处（eval-<id>.md）
+├── evals/outputs/             # 评测回答存放处（eval-<id>.md）
+└── .github/workflows/
+    └── gates.yml              # CI：全量 18 例（ubuntu + windows）+ 断言引擎自检
 ```
 
 ## 验证与测试
@@ -143,6 +146,10 @@ Rscript scripts/verify_examples.R
 
 === 汇总：18/18 PASS ===
 ```
+
+**CI 门禁 ≠ 免跑凭证。** `.github/workflows/gates.yml` 在每次 push / PR 上自动做两件事：装好 `mlr3verse` 依赖树后**全量**跑 18 例（ubuntu + windows 双平台，不砍案例、不砍折数、不砍预算），再跑断言引擎自检。硬依赖（`e1071` / `ranger` / `xgboost` / `bestNormalize`）装不上直接红；可选依赖（`ps` / `mlr3tuningspaces`）缺失由脚本记 SKIP，汇总行会点名，不算失败。
+
+但**改动示例代码后仍须本机实跑一遍**（约 5 分钟），并把通过率写进 CHANGELOG——CI 只证明"这两个平台、这个时点的 CRAN 快照"跑得通，而你交付给用户的环境是你自己的机器；两者的实测记录不能互相顶替。
 
 **评测**（evals.json 的 6 个 prompt 覆盖标准流程/红线拦截/时间序列/不平衡/回归/嵌套重抽样陷阱）：把回答存进 `evals/outputs/eval-<id>.md`，然后：
 

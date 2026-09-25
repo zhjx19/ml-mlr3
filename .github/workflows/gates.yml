@@ -1,0 +1,66 @@
+name: gates
+
+# 两道门禁：
+#   1) R 骨架回归 —— 全量 18 例实跑（scripts/verify_examples.R）
+#   2) 断言引擎自检 —— 无/有 skill 两侧的评测断言不能互相漏检（scripts/run_evals.mjs --selftest）
+# 可选依赖（ps / mlr3tuningspaces）缺失时脚本记为 SKIP，不算失败；硬依赖装不上则直接红。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify-examples:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+          use-public-cloud: true
+
+      - name: Install hard deps (mlr3verse tree + example backing packages)
+        shell: Rscript {0}
+        run: |
+          hard = c("mlr3verse", "e1071", "ranger", "xgboost", "bestNormalize")
+          opt  = c("ps", "mlr3tuningspaces")
+          install.packages(c(hard, opt), Ncpus = 4L)
+          missing_hard = hard[!vapply(hard, requireNamespace, logical(1), quietly = TRUE)]
+          if (length(missing_hard)) {
+            cat("::error::硬依赖安装失败:", paste(missing_hard, collapse = ", "), "\n")
+            quit(status = 1)
+          }
+          cat("### R 环境\n", file = Sys.getenv("GITHUB_STEP_SUMMARY"), append = TRUE)
+          vers = sapply(c(hard, opt), function(p) tryCatch(
+            as.character(packageVersion(p)), error = function(e) "MISSING"))
+          cat("```\n", paste0(sprintf("%-18s", names(vers)), vers, collapse = "\n"),
+              "\n```\n", file = Sys.getenv("GITHUB_STEP_SUMMARY"), append = TRUE)
+
+      - name: Run skeleton regression (18 cases)
+        run: Rscript scripts/verify_examples.R
+
+      - name: On failure, dump session info for triage
+        if: failure()
+        shell: Rscript {0}
+        run: |
+          cat("::warning::骨架回归未通过，以下为环境快照\n")
+          print(sessionInfo())
+
+  evals-selftest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Assert-engine selftest (golden 0 FAIL / violations all caught)
+        run: node scripts/run_evals.mjs --selftest
