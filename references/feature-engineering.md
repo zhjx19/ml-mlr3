@@ -7,14 +7,17 @@ mlr3verse 的防泄露特征工程依赖 `mlr3pipelines`。原则：**任何需�
 ```r
 library(mlr3verse)
 
-po()   # 查看 PipeOp 字典
-ppl()  # 查看预置 pipeline
+mlr_pipeops$keys()                       # PipeOp 字典键名（下划线原样保留）
+mlr_pipeops$get("splines")$param_set$ids()  # 某个 PipeOp 的参数名
+ls(asNamespace("mlr3pipelines"), pattern = "^pipeline_")  # ppl() 可用的预置管道
 
 glrn = po("scale") %>>%
   po("pca", rank. = 2) %>>%
   lrn("classif.rpart") |>
   as_learner()
 ```
+
+注意：裸写 `po()` / `ppl()` **不能**列字典（报 `cannot coerce type 'environment' to vector of type 'character'`），要查就用上面的 `mlr_pipeops$keys()`。
 
 规则：
 
@@ -79,18 +82,37 @@ glrn = ppl("robustify") %>>%
 ## 4. 控制作用列
 
 ```r
-glrn = po("scale", affect_columns = selector_type("numeric")) %>>%
+glrn = po("scale", affect_columns = selector_type(c("numeric", "integer"))) %>>%
   po("encode", method = "treatment", affect_columns = selector_type("factor")) %>>%
   lrn("classif.glmnet", predict_type = "prob") |>
   as_learner()
 ```
 
+selector 本质是 **`function(Task) -> character`**，所以 `po("select", selector = ...)` 只能传函数，传字符向量会报 `selector: Must be a function, not 'character'`（实测）；想按名字选就写 `selector_name(c("x1", "x2"))`。
+
 常用 selector：
 
-- `selector_type("numeric")`
-- `selector_type("factor")`
+- `selector_type("numeric")` / `selector_type("factor")` / `selector_type(c("numeric", "integer"))`
 - `selector_name(c("x1", "x2"))`
-- `selector_invert(...)`
+- `selector_grep("^num_")`
+- `selector_invert(...)`、`selector_intersect(...)`、`selector_union(...)`
+- `selector_missing()` / `selector_cardinality_greater_than(10)`
+- `pos(...)`（`mlr3pipelines` 特征位置选择器，`ppl("branch")` 的分支索引用它）
+
+三条实测坑：
+
+1. **`integer` 不等于 `numeric`**。`data.table` 里 `1:10`、`sample(1:20, n, TRUE)` 这类列在 task 中的类型是 `integer`，`selector_type("numeric")` **选不中它们**——`po("scale")` 会静默跳过整数列。数值预处理要连整数一起作用，写 `selector_type(c("numeric", "integer"))`，或者干脆用默认的 `selector_all()`（`po("scale")` 默认对所有数值列生效，含 integer）。
+2. **`$state$affected_cols` 是 selector 选中的列，不是真正被变换的列**。`po("scale")` 在该 task 上的 `affected_cols` 会把 factor 列也列进去，而实际该列原样透传；判断预处理是否真的生效，要比对 `$train()` 输出 task 的数据，别看这个字段。
+3. **符号类 selector 不由 `mlr3verse` 再导出**。`getNamespaceExports("mlr3verse")` 里只有 `selector_all / cardinality_greater_than / grep / intersect / invert / missing / name / none / setdiff / type / union` 这 11 个；`selector_positive`、`selector_negative`、`selector_non_negative`、`selector_non_positive`、`selector_non_zero`、`selector_non_missing` 六个必须加 `mlr3pipelines::` 前缀。另外**根本没有 `neg()` 这个函数**（`pos()` 有），取反请写 `selector_invert(...)`。
+
+其它 PipeOp 的类型前置（实测）：
+
+| PipeOp | 约束 | 报错 |
+|---|---|---|
+| `boxcox` | 作用列必须全为正值 | `x must be positive`（含负值/零时改用 `yeojohnson`） |
+| `splines` | 默认作用全部列，遇 factor 崩 | `non-numeric argument to binary operator`，须 `affect_columns = selector_type("numeric")` |
+| `subsample` | `stratify = TRUE` 与内部按组抽样互斥 | `Cannot combine stratification with grouping`，须同时 `use_groups = FALSE` |
+| `pca` / `ica` / `nmf` | 只吃数值矩阵 | 有 factor 列时先 `encode`，或用 `affect_columns` 限定 |
 
 ## 5. 模型前处理建议
 
@@ -102,7 +124,7 @@ glrn = po("scale", affect_columns = selector_type("numeric")) %>>%
 | 神经网络 | 缺失插补、one-hot、标准化、降相关 / PCA |
 | 朴素贝叶斯 | 常量列删除；视实现处理缺失和因子 |
 | 单棵树 | 通常无需标准化；仍需处理 learner 不支持的缺失 / 类型 |
-| 随机森林 / 提升树 | 多数实现需要完整数据；通常不需标准化 |
+| 随机森林 / 提升树 | 多数实现需要完整数据；通常不需标准化。注意 ranger / xgboost **不接受 factor 列**（实测报 `<TaskClassif:...> has the following unsupported feature types: factor`），必须先 `po("encode")` 或走 `ppl("robustify")` |
 
 ## 6. 联合调预处理和模型参数
 
@@ -110,6 +132,8 @@ glrn = po("scale", affect_columns = selector_type("numeric")) %>>%
 glrn = po("encode", method = to_tune(c("treatment", "one-hot"))) %>>%
   po("pca", rank. = to_tune(2, 10)) %>>%
   lrn("classif.svm",
+    type = "C-classification",               # 必须显式设：cost 是条件参数
+    kernel = "radial",                        # 必须显式设：gamma 是条件参数
     cost = to_tune(1e-5, 1e5, logscale = TRUE),
     predict_type = "prob"
   ) |>
@@ -119,7 +143,34 @@ at = auto_tuner(
   tuner = tnr("random_search"),
   learner = glrn,
   resampling = rsmp("cv", folds = 4),
-  measure = msr("classif.auc"),
+  measure = msr("classif.ce"),
   term_evals = 30
 )
 ```
+
+图里带 `classif.svm` 时，`type` / `kernel` 忘了显式设置，`at$train()` 会在调优第一步就报 `Assertion on 'xs' failed: classif.svm.cost: can only be set if ... type == C-classification`（实测：PipeOp 参数 `to_tune()` 不会改变这个前置条件）。
+
+## 7. 日期时间列与惰性物化
+
+`ppl("robustify")` 里的 `POSIXct_to_dbl` 只做**一次线性映射到数值**，不会展开日历特征。要从日期里取年/月/周/星期等特征，显式放 `po("datefeatures")`：
+
+```r
+po_df = po("datefeatures", cyclic = TRUE)          # 周期性展开：sin/cos
+po_df$train(list(task_date))
+out = po_df$predict(list(task_date))[[1L]]
+out$feature_names      # 含 dt.month_sin, dt.month_cos, dt.year, dt.day_of_week ...
+```
+
+参数（`mlr_pipeops$get("datefeatures")$param_set$ids()` 实测）：`keep_date_var`（是否保留原 Date 列）、`cyclic`、以及逐个开关 `year / quarter / month / week_of_year / day_of_year / day_of_month / day_of_week / hour / minute / second / is_day / is_month_start / is_month_end / is_quarter_start / is_quarter_end / is_year_start / is_year_end / is_leap_year`、`affect_columns`。输出列名规则是 `<原列名>.<特征名>`（含 `cyclic = TRUE` 时 `sin` / `cos` 后缀）。
+
+Date / POSIXct 列可以**直接进插补 PipeOp**（实测 `po("imputemedian")`、`po("imputehist")` 对含 NA 的 Date 列 `$train()` 正常出结果），不必先手动转数值。
+
+调试或把 task 交给不吃 Task 的外部函数时，用物化：
+
+```r
+glrn_dbg = (po("removeconstants") %>>% po("materialize") %>>% lrn("classif.rpart")) |> as_learner()
+view = task$clone(deep = TRUE)$filter(1:30)$materialize_view()   # 冻结成 data.frame 视图
+```
+
+`po("materialize")` 自身**没有参数**（`$param_set$ids()` 为空），作用是在图中把该点之后的 task 数据落地，便于中途查看/导出。
+

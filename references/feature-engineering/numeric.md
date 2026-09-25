@@ -46,8 +46,14 @@ po_yj = po("yeojohnson")
 - 从 3-5 开始，必要时调优
 
 ```r
-po_spline = po("splines", type = "natural", df = 5)
+# 必须显式限定作用列：po("splines") 默认 affect_columns = selector_all()，
+# 遇到 factor 列会崩在内部 quantile() 上，报错信息是 "non-numeric argument to binary
+# operator"（实测），完全看不出是类型问题。
+po_spline = po("splines", type = "natural", df = 5,
+               affect_columns = selector_type("numeric"))
 ```
+
+实测约束：`type` 只接受 `"natural"` 与 `"polynomial"`（写 `"b-spline"` 报 Must be element of set）；`knots` 必须是 **list**（每个作用列一条），给标量数字报 `Must be of type 'list'`；`df = 5` 时每个数值列展开成 `x1.splines.1 … x1.splines.5`，原列仍保留。
 
 ## 交互项
 

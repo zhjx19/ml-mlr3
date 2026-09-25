@@ -3,7 +3,7 @@
 > *「模型代码谁都会写，难的是全程不偷偷摸一下测试集。」*
 
 [![Agent Skills](https://img.shields.io/badge/Agent%20Skills-ml--mlr3-blueviolet)](SKILL.md)
-[![Live Verify](https://img.shields.io/badge/verify_examples.R-14%2F14%20PASS-brightgreen)](#验证与测试)
+[![Live Verify](https://img.shields.io/badge/verify_examples.R-17%2F17%20PASS-brightgreen)](#验证与测试)
 [![Evals](https://img.shields.io/badge/evals-6%20prompts%20%2B%20assertions-orange)](#验证与测试)
 [![GitHub](https://img.shields.io/badge/GitHub-zhjx19%2Fml--mlr3-black)](https://github.com/zhjx19/ml-mlr3)
 [![skills.sh](https://skills.sh/b/zhjx19/ml-mlr3)](https://skills.sh/zhjx19/ml-mlr3)
@@ -106,7 +106,7 @@ ml-mlr3/
 │   ├── evaluation.md          # 指标、ROC/PRC/残差图、benchmark、最终评估
 │   └── advanced-workflows.md  # 5 大进阶工作流（调优benchmark/图调参/不平衡/联合调优/早停）
 ├── scripts/
-│   ├── verify_examples.R      # 骨架回归：14 个案例一键实跑（含字典探针，防文档写回已移除的 API）
+│   ├── verify_examples.R      # 骨架回归：17 个案例一键实跑（含字典探针，防文档写回已移除的 API）
 │   └── run_evals.mjs          # evals 断言评分器（零依赖 Node）
 └── evals/outputs/             # 评测回答存放处（eval-<id>.md）
 ```
@@ -136,8 +136,11 @@ Rscript scripts/verify_examples.R
 [PASS] 调参档案·dtype 与 trafo 尺度
 [PASS] learner$deadline
 [PASS] 字典探针·文档点名对象
+[PASS] PipeOp 类型前置·splines/boxcox/subsample/select
+[PASS] selector·integer 与 affected_cols 语义
+[PASS] 文档签名·图调参与 lts 预置空间
 
-=== 汇总：14/14 PASS ===
+=== 汇总：17/17 PASS ===
 ```
 
 **评测**（evals.json 的 6 个 prompt 覆盖标准流程/红线拦截/时间序列/不平衡/回归/嵌套重抽样陷阱）：把回答存进 `evals/outputs/eval-<id>.md`，然后：

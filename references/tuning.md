@@ -8,11 +8,14 @@
 
 ```r
 learner = lrn("classif.svm",
+  type = "C-classification",                 # 必须显式设：cost 依赖 type == "C-classification"
   cost = to_tune(1e-5, 1e5, logscale = TRUE),
   kernel = to_tune(c("polynomial", "radial")),
   predict_type = "prob"
 )
 ```
+
+`cost` / `gamma` 是**条件参数**。不显式写 `type`，`at$train()` 第一步就报 `Assertion on 'xs' failed: classif.svm.cost: can only be set if the following condition is met 'classif.svm.type == C-classification'`——即使 e1071 的 `type` 默认值正好是 `C-classification` 也一样，paradox 只看你**显式设过**的值。想同时调 `gamma` 还要显式设 `kernel`（`gamma` 依赖 `kernel ∈ {polynomial, radial, sigmoid}`）；但注意 `kernel` 自己也在搜索空间里时，`gamma` 与 `degree` 的前置条件会互相牵制，最稳妥是把 `kernel` 固定成 `"radial"` 再调 `cost + gamma`。
 
 ### 1.2 用 `ps()` 显式声明
 
@@ -24,11 +27,25 @@ search_space = ps(
 )
 ```
 
-### 1.3 使用预定义空间
+### 1.3 使用预定义空间（`mlr3tuningspaces`，需单独安装）
+
+`lts()` 返回的是一个 **TuningSpace R6 对象**，不是搜索空间；要拿 learner 得调 `$get_learner()`：
 
 ```r
 library(mlr3tuningspaces)
-search_space = lts("classif.svm.default")
+
+lts("classif.svm.default")$id        # 空间名
+lts("classif.svm.default")$values    # 哪些参数带 TuneToken：cost, kernel, degree, gamma
+
+learner = lts("classif.ranger.default")$get_learner()   # 已预装 to_tune 的 learner，直接用
+mlr_tuning_spaces$keys()               # 全部预置空间（*_default 与 *_rbv1/*_rbv2 两类）
+```
+
+`svm.default` 这类空间**仍然受条件参数前置约束**：直接 `auto_tuner(learner = lts("classif.svm.default")$get_learner())$train(task)` 会报 `Assertion on 'xs' failed: cost: can only be set if ... 'type == C-classification'. Instead the parameter value for 'type' is not set at all`（实测）。预置空间不会替你设 `type`，必须补一行：
+
+```r
+learner = lts("classif.svm.default")$get_learner()
+learner$param_set$values$type = "C-classification"
 ```
 
 ## 2. auto_tuner：推荐入口
@@ -76,6 +93,8 @@ trm("combo", list(trm("evals", n_evals = 50), trm("run_time", secs = 1800)))
 glrn = po("encode", method = to_tune(c("treatment", "one-hot"))) %>>%
   po("pca", rank. = to_tune(2, 10)) %>>%
   lrn("classif.svm",
+    type = "C-classification",               # 图调参同样要显式设条件参数前置
+    kernel = "radial",
     cost = to_tune(1e-5, 1e5, logscale = TRUE),
     predict_type = "prob"
   ) |>

@@ -20,16 +20,19 @@ license: Apache-2.0
 
 ## API 现场校验（不背版本号）
 
-mlr3 生态迭代快，本技能不维护版本对照表：**版本号全文只出现在下面这一行实测记录里**，它回答"这些示例最近何时、在什么环境跑通"，不回答"哪个 API 从哪个版本起存在"。规则只有一条：**照抄任何对象名/参数名之前，先当场探测它是否存在**。示例的可执行契约由 `scripts/verify_examples.R`（14 例实跑）和 `scripts/run_evals.mjs`（静态断言）把守——改完示例代码这两个都必须重跑，跑通后刷新这行记录。
+mlr3 生态迭代快，本技能不维护版本对照表：**版本号全文只出现在下面这一行实测记录里**，它回答"这些示例最近何时、在什么环境跑通"，不回答"哪个 API 从哪个版本起存在"。规则只有一条：**照抄任何对象名/参数名之前，先当场探测它是否存在**。示例的可执行契约由 `scripts/verify_examples.R`（17 例实跑）和 `scripts/run_evals.mjs`（静态断言）把守——改完示例代码这两个都必须重跑，跑通后刷新这行记录。
 
-> 实测记录：2026-09-26 · R 4.6.1 / mlr3 1.8.0 / mlr3pipelines 0.12.0 / mlr3tuning 1.7.0 / mlr3fselect 1.7.0 / paradox 1.0.1 · `verify_examples.R` 14/14 PASS
+> 实测记录：2026-09-26 · R 4.6.1 / mlr3 1.8.0 / mlr3pipelines 0.12.0 / mlr3tuning 1.7.0 / mlr3fselect 1.7.0 / paradox 1.0.1 · `verify_examples.R` 17/17 PASS
 
 ```r
 mlr_learners$keys(); mlr_pipeops$keys(); mlr_measures$keys()
 mlr_tuners$keys(); mlr_fselectors$keys(); mlr_tasks$keys()
 mlr_pipeops$get("datefeatures")$param_set$ids()   # PipeOp 参数名
 lrn("classif.xgboost")$param_set$ids()            # 学习器参数名
+getNamespaceExports("mlr3verse")                   # 到底哪些函数被再导出（比 exists() 可靠）
 ```
+
+判断"某个函数能不能裸写"用 `getNamespaceExports("mlr3verse")` 与 `getNamespaceExports("mlr3pipelines")` 的导出集，别用 `exists()`：导出集只回答"这个包到底导出了什么"，而 `exists()` 取决于当前 search path 与脚本跑到一半的状态——实测 `exists("selector_positive")` 在新会话里是 `FALSE`，在跑到后半段的验证脚本里却成了 `TRUE`（具体成因未定位，正是这类不确定性让它不适合当判据）。
 
 三类报错信号按此顺序排查，别急着怀疑自己的逻辑：
 
@@ -47,6 +50,11 @@ lrn("classif.xgboost")$param_set$ids()            # 学习器参数名
 | `fs("sequential")` / `fs("rfe")` / `fs("rfecv")` | `fs("forward")` / `fs("backward")` / `fs("bonu")`（已不在字典） |
 | `task$feature_names` / `task$target_names` / `task$nrow` / `task$row_ids` | `task$cols()` / `task$nrow()` / `task$row_ids()`（会报 attempt to apply non-function） |
 | 自己 `cor(task$data(cols = NULL)[, .SD, .SDcols = task$feature_names])` | `task$correlation()`（已移除） |
+| `mlr_pipeops$keys()` / `ls(asNamespace("mlr3pipelines"), pattern = "^pipeline_")` | 裸写 `po()` / `ppl()` 当字典浏览器（报 `cannot coerce type 'environment' to vector...`） |
+| `po("splines", df = 5, affect_columns = selector_type(c("numeric", "integer")))` | `po("splines", df = 5)` 直接进图（默认作用全部列，遇 factor 崩在内部 `quantile()` 上，报 `non-numeric argument to binary operator`） |
+| `po("subsample", frac = .5, stratify = TRUE, use_groups = FALSE)` | `po("subsample", stratify = TRUE)`（报 `Cannot combine stratification with grouping`） |
+| `mlr3pipelines::selector_positive()`（等 6 个符号类） | 裸写 `selector_positive()` / `neg()`（`mlr3verse` 不再导出这 6 个，且 `neg` 压根不存在） |
+| `lts("classif.ranger.default")$get_learner()` | `search_space = lts(...)`（`lts()` 返回 TuningSpace R6，`$learner` 只是 id 字符串） |
 
 两条实测确认的纪律：`AutoTuner` / `AutoFselector` 的 `$clone(deep = TRUE)` 得到的是**全新未训练**对象（`$model`、`$archive` 为空），可以放心各自训练互不干扰——但 `Task` 的 `$select()` / `$filter()` 和 `$param_set$values` 仍是原地修改（见红线 2）。`fs("rfecv")` 配最小化指标（`classif.ce` 等）时，必须自己核对 `selection_result` 里特征数与性能的走向是否单调，别默认它选对了。
 
@@ -259,17 +267,19 @@ autoplot(rr$prediction(), type = "roc")   # 二分类；不平衡改 type = "prc
 图学习器用 `%>>%` 连接 PipeOp，末端 `|> as_learner()` 转为 Learner：
 
 ```r
-glrn = po("scale", affect_columns = selector_type("numeric")) %>>%
+glrn = po("scale", affect_columns = selector_type(c("numeric", "integer"))) %>>%
   po("pca", rank. = 2) %>>%
   lrn("classif.rpart") |>
   as_learner()
 ```
 
+`selector_type("numeric")` **选不中 `integer` 列**（整数在 task 里是独立类型），要连整数一起缩放必须写 `selector_type(c("numeric", "integer"))`——否则 `po("scale")` 静默跳过 `1:10` 这类列。
+
 | 模型 | 建议 PipeOp |
 |---|---|
 | 线性/逻辑/glmnet | `removeconstants` + `imputemean`/`imputemode` + `encode("treatment")` + `scale` |
 | KNN/SVM/NN | `removeconstants` + 插补 + `encode("one-hot")` + `scale` |
-| 树/随机森林/提升树 | 通常不需标准化；多数需插补 |
+| 树/随机森林/提升树 | 通常不需标准化；但 ranger / xgboost **不接受 factor 列**（报 `unsupported feature types: factor`），仍需 `encode` 与插补 |
 | 不平衡分类 | `po("classbalancing")` 或 `po("smote")`（必须在图中） |
 
 ### mlr3pipelines 高级能力
@@ -459,4 +469,4 @@ skill.md 保持精简；遇到以下具体需求时，读取对应知识文件�
 - [ ] 对复杂 GraphLearner 是否利用了 `ppl("branch")` 分支路由调参？
 - [ ] 不平衡处理（SMOTE 等）是否封装在图中并用 `auto_tuner` 确保每折独立采样？
 - [ ] 代码是否遵守全局 R 编码铁律（`=`、`|>`/`%>>%`、`\(x)`、`.by`）？
-- [ ] 示例代码改动后运行 `scripts/verify_examples.R`，5 个骨架全 PASS？
+- [ ] 示例代码改动后运行 `scripts/verify_examples.R`，17 个案例全 PASS？
