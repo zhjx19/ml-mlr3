@@ -3,7 +3,7 @@
 > *「模型代码谁都会写，难的是全程不偷偷摸一下测试集。」*
 
 [![Agent Skills](https://img.shields.io/badge/Agent%20Skills-ml--mlr3-blueviolet)](SKILL.md)
-[![Live Verify](https://img.shields.io/badge/verify_examples.R-6%2F6%20PASS-brightgreen)](#验证与测试)
+[![Live Verify](https://img.shields.io/badge/verify_examples.R-14%2F14%20PASS-brightgreen)](#验证与测试)
 [![Evals](https://img.shields.io/badge/evals-6%20prompts%20%2B%20assertions-orange)](#验证与测试)
 [![GitHub](https://img.shields.io/badge/GitHub-zhjx19%2Fml--mlr3-black)](https://github.com/zhjx19/ml-mlr3)
 [![skills.sh](https://skills.sh/b/zhjx19/ml-mlr3)](https://skills.sh/zhjx19/ml-mlr3)
@@ -96,7 +96,7 @@ ln -s "$(pwd)/ml-mlr3" <你的-agent-skills-目录>/ml-mlr3
 
 ```text
 ml-mlr3/
-├── SKILL.md                   # 入口：版本锚定、铁律、五大红线、默认工作流、最小骨架
+├── SKILL.md                   # 入口：API 现场校验、铁律、五大红线、默认工作流、最小骨架
 ├── evals.json                 # 6 个评测 prompt + 机器可查断言（对标 tidymodels 官方 evals 形态）
 ├── references/
 │   ├── data-spending.md       # 数据划分与测试集隔离（含最终评估话术）
@@ -106,7 +106,7 @@ ml-mlr3/
 │   ├── evaluation.md          # 指标、ROC/PRC/残差图、benchmark、最终评估
 │   └── advanced-workflows.md  # 5 大进阶工作流（调优benchmark/图调参/不平衡/联合调优/早停）
 ├── scripts/
-│   ├── verify_examples.R      # 骨架回归：5 个案例一键实跑
+│   ├── verify_examples.R      # 骨架回归：14 个案例一键实跑（含字典探针，防文档写回已移除的 API）
 │   └── run_evals.mjs          # evals 断言评分器（零依赖 Node）
 └── evals/outputs/             # 评测回答存放处（eval-<id>.md）
 ```
@@ -119,7 +119,7 @@ ml-mlr3/
 Rscript scripts/verify_examples.R
 ```
 
-2026-09-13 实跑输出（R 4.6.1 / mlr3 1.7.1，版本锚定见 SKILL.md）：
+最近一次实跑输出：
 
 ```text
 [PASS] 最小骨架·分类
@@ -128,8 +128,16 @@ Rscript scripts/verify_examples.R
 [PASS] ppl(branch) 分支调参
 [PASS] 时序·custom 滚动折
 [PASS] benchmark 调优后比较
+[PASS] 早停·best_valid_score
+[PASS] selector·整数列与符号选择器
+[PASS] greplicate + materialize
+[PASS] datefeatures 日历展开
+[PASS] Task·访问器语义
+[PASS] 调参档案·dtype 与 trafo 尺度
+[PASS] learner$deadline
+[PASS] 字典探针·文档点名对象
 
-=== 汇总：6/6 PASS ===
+=== 汇总：14/14 PASS ===
 ```
 
 **评测**（evals.json 的 6 个 prompt 覆盖标准流程/红线拦截/时间序列/不平衡/回归/嵌套重抽样陷阱）：把回答存进 `evals/outputs/eval-<id>.md`，然后：
@@ -149,7 +157,7 @@ node scripts/run_evals.mjs              # 逐断言评分，任一 FAIL 退出�
 - [tidymodels/skills](https://github.com/tidymodels/skills) —— 官方 skill 的 evals/断言形态与「纪律优先」方法论是本 skill 的对标来源
 - [mlr3book](https://mlr3book.mlr-org.com) 与 [mlr3gallery](https://mlr3gallery.mlr-org.com) —— mlr3verse 生态权威文档
 - [krishi-shah/ml-engineer-skills](https://github.com/krishi-shah/ml-engineer-skills) —— 「ML 错误检查器」思路的启发
-- 版本演进提示的上游依据：mlr3 / mlr3pipelines / mlr3tuning / mlr3fselect 各包 NEWS
+- 上游 mlr3 / mlr3pipelines / mlr3tuning / mlr3fselect 各包 NEWS 是新用法的线索来源；技能正文只保留**实测通过**的当前写法，不留版本号账目
 
 ## License
 
@@ -157,4 +165,4 @@ node scripts/run_evals.mjs              # 逐断言评分，任一 FAIL 退出�
 
 ---
 
-*mlr3 生态迭代快，遇到 API 报错先查 SKILL.md「版本锚定」节。*
+*mlr3 生态迭代快，照抄示例前先按 SKILL.md「API 现场校验」节探测对象是否存在；`scripts/verify_examples.R` 里的字典探针会把不存在的键直接判 FAIL。*

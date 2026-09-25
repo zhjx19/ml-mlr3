@@ -18,27 +18,39 @@ license: Apache-2.0
 
 **不在范围内**：深度学习、非表格数据（图像/文本/NLP）、tidymodels 工作流（改用 tidymodels 生态技能）。
 
-## 版本锚定
+## API 现场校验（不背版本号）
 
-本技能示例代码于 **2026-09-13** 在下列环境实测通过（`scripts/verify_examples.R` 6/6 PASS）：
+mlr3 生态迭代快，本技能不维护版本对照表。规则只有一条：**照抄任何对象名/参数名之前，先当场探测它是否存在**。示例的可执行契约由 `scripts/verify_examples.R`（14 例实跑）和 `scripts/run_evals.mjs`（静态断言）把守——改完示例代码这两个都必须重跑。
 
-| 包 | 版本 |
+```r
+mlr_learners$keys(); mlr_pipeops$keys(); mlr_measures$keys()
+mlr_tuners$keys(); mlr_fselectors$keys(); mlr_tasks$keys()
+mlr_pipeops$get("datefeatures")$param_set$ids()   # PipeOp 参数名
+lrn("classif.xgboost")$param_set$ids()            # 学习器参数名
+```
+
+三类报错信号按此顺序排查，别急着怀疑自己的逻辑：
+
+1. `could not find function "x"` / `attempt to apply non-function`：对象已被移除，或它现在是**字段**（去掉括号），或**不再由 mlr3verse 再导出**（加 `mlr3pipelines::` 前缀）。
+2. `Cannot set argument 'x' ... Did you mean 'y'`：参数改名或变成条件参数，先查 `$param_set$ids()`。
+3. 字典键名保留下划线（`grid_search`、`learner_cv`），照 `keys()` 的输出写最稳；`tnr()`/`po()` 的糖才做规范化。
+
+已实测的当前 API 事实（写示例时按这些来，不要引用左侧的旧写法）：
+
+| 现在这样写 | 不要这样写 |
 |---|---|
-| R | 4.6.1 |
-| mlr3 | 1.7.1 |
-| mlr3pipelines | 0.11.0 |
-| mlr3tuning | 1.6.0 |
-| mlr3fselect | 1.6.0 |
-| paradox | 1.0.1 |
+| `set_validate(learner, validate = 0.3)` | learner 构造参数 `validate =` |
+| `ppl("greplicate", graph = ..., n = 3L)` | 独立函数 `greplicate()` |
+| `tsk("diabetes")` | `tsk("pima")`（已不在字典） |
+| `fs("sequential")` / `fs("rfe")` / `fs("rfecv")` | `fs("forward")` / `fs("backward")` / `fs("bonu")`（已不在字典） |
+| `task$feature_names` / `task$target_names` / `task$nrow` / `task$row_ids` | `task$cols()` / `task$nrow()` / `task$row_ids()`（会报 attempt to apply non-function） |
+| 自己 `cor(task$data(cols = NULL)[, .SD, .SDcols = task$feature_names])` | `task$correlation()`（已移除） |
 
-mlr3 生态迭代快，遇到 API 报错先怀疑版本差异：用 `packageVersion("mlr3")` 核对，已知迁移案例如早停验证集设置已从 learner 参数 `validate` 改为 `set_validate()`（见 `references/advanced-workflows.md` §5）。改完示例代码必须重跑 `Rscript scripts/verify_examples.R`。
+两条实测确认的纪律：`AutoTuner` / `AutoFselector` 的 `$clone(deep = TRUE)` 得到的是**全新未训练**对象（`$model`、`$archive` 为空），可以放心各自训练互不干扰——但 `Task` 的 `$select()` / `$filter()` 和 `$param_set$values` 仍是原地修改（见红线 2）。`fs("rfecv")` 配最小化指标（`classif.ce` 等）时，必须自己核对 `selection_result` 里特征数与性能的走向是否单调，别默认它选对了。
 
-### 版本演进提示（上游 changelog 摘要，2026-09 核对）
+### pipeline 构造器与 PipeOp 是两个命名空间
 
-- **mlr3 ≥ 1.8.0（当前 1.7.1，未升级）**：BREAKING——`tsk("pima")` 移除，改用 `tsk("diabetes")`（本技能未引用 pima）；新增 `msr("best_valid_score")`（早停内部验证分数，需 mlr3pipelines ≥ 0.12 的 `$best_valid_scores` 配合）。升级后必须重跑 verify。
-- **mlr3tuning ≥ 1.6.1（当前 1.6.0）**：修复 `AutoTuner$clone(deep = TRUE)` 深克隆语义——低版本上克隆与原对象共享内部 learner/重抽样，红线 2 额外适用于 AutoTuner。
-- **mlr3fselect ≥ 1.7.0（当前 1.6.0）**：修复 `fs("rfecv")` 与最小化指标（classif.ce 等）连用时选错特征数的方向 bug——低版本上该组合的结果无效，须重算。
-- **mlr3pipelines 0.11（当前 0.11.0，实测）**：插补 PipeOp 已支持 Date/POSIXct；`po("splines")` 数值样条基展开可用；GraphLearner `$predict_newdata_fast()` 可用。≥ 0.12 起 `greplicate()` 移除，改用 `ppl("greplicate")`。
+`ppl("robustify")` / `ppl("greplicate")` / `ppl("ovr")` / `ppl("stacking")` / `ppl("branch")` / `ppl("targettrafo")` / `ppl("convert_types")` 不在 `mlr_pipeops$keys()` 里，它们对应 `pipeline_*` 函数，形参各不相同：`greplicate(graph, n)`、`branch(graphs)`、`ovr(graph)`、`stacking(base_learners, super_learner)`、`targettrafo(graph)`、`convert_types(type_from, type_to)`。用之前 `names(formals(mlr3pipelines:::pipeline_x))` 或试构造一次，报错信息里的形参名是可信的。
 
 ## 全局 R 编码铁律
 

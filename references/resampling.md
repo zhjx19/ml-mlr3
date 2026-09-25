@@ -68,7 +68,7 @@ rr = resample(train_task, learner, cv)
 
 ## 6. 时间序列：显式时间切分 + `rsmp("custom")` 滚动折
 
-> **实测警告（mlr3 1.7.1 验证）**：内置重抽样字典只有 bootstrap / custom / custom_cv / cv / holdout / insample / loo / repeated_cv / subsampling——**没有 `rolling_origin`**。且 `order` 角色只作时间标记，**不会**让 `rsmp("cv")` / `rsmp("holdout")` 按时间切分（实测 holdout 测试集会散布在中段）。时序正确做法只有两条：按时间位置显式切分 + `rsmp("custom")` 手写滚动折。
+> **实测警告**：内置重抽样字典只有 bootstrap / custom / custom_cv / cv / holdout / insample / loo / repeated_cv / subsampling——**没有 `rolling_origin`**（`rsmp("rolling_origin")` 运行即报错）。且 `order` 角色只作时间标记，**不会**让 `rsmp("cv")` / `rsmp("holdout")` 按时间切分（实测 holdout 测试集会散布在中段）。时序正确做法只有两条：按时间位置显式切分 + `rsmp("custom")` 手写滚动折。
 
 ```r
 # order 角色仅作标记，不能替代显式时间切分

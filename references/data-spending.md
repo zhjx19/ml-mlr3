@@ -64,7 +64,7 @@ split = partition(task, ratio = 0.7)
 
 ## 5. 时间序列 / 有序数据
 
-时间序列禁止随机划分——`partition()` 会把未来数据撒进训练集；`order` 角色只作标记，**不会**改变随机重抽样的切分方式（实测 mlr3 1.7.1）。按时间位置显式切：
+时间序列禁止随机划分——`partition()` 会把未来数据撒进训练集；`order` 角色只作标记，**不会**改变随机重抽样的切分方式（实测：`rsmp("holdout")` 的测试集行号散布在中段）。按时间位置显式切：
 
 ```r
 task = as_task_regr(time_ordered_df, target = "outcome")
