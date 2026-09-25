@@ -141,11 +141,19 @@ rr_nested = resample(train_task, at, rsmp("cv", folds = 3))
 rr_nested$aggregate(msr("classif.auc"))  # 无偏估计调参后泛化误差
 ```
 
-### 红线 5：并行计算必须授权
+### 红线 5：并行自动启用，但必须先量可用资源
 
-不得自动启用并行。流程：`parallel::detectCores()` → 询问用户 → 获许可后才设 `future::plan("multisession", workers = n)`（Windows 用 `multisession`）。
+不必征求授权即可开并行；**风险不是"擅自并行"，而是"凭空假设机器空闲"**。`future::availableCores()` 只报 CPU 额度上限、不报真实负载——本机实测恒为 20，同期内存已用 73%，说明机器并不空。所以开并行前两个数都要看：
 
-授权之后一条实测纪律：并行粒度是**重抽样迭代（折）**，所以外层一开并行，learner 内部线程必须压成 1——`set_threads(learner, n = 1L)`（单个 learner 或列表都行；线程参数名现探 `learner$param_set$ids(tags = "threads")`）。**写成 `set_threads(learner, nthreads = 1)` 是静默反向的**：形参只有 `(x, n, ...)`，错名被 `...` 吞掉、`n` 落到默认值 `availableCores()`，线程反而拉满。
+```r
+future::availableCores()    # CPU 额度（上限，非当前空闲）
+ps::ps_system_memory()      # total / avail / percent：真实内存负载
+future::plan("multisession", workers = n_workers)  # Windows 用 multisession
+```
+
+`n_workers` 取 `min(availableCores() - 1L, 内存装得下的折数)`；`percent` 已高、或用户在同一机器上同时干别的事，就主动下调，宁可退回单线程并说明原因。跑完 `future::plan("sequential")` 复原。（没装 `ps` 就别探测、按保守档取；`future` **没有** `availableMemory()`，`memory.limit()` 已不再支持——实测只告警并返回 `Inf`——两者都不能当负载信号。）
+
+一条实测纪律：并行粒度是**重抽样迭代（折）**，所以外层一开并行，learner 内部线程必须压成 1——`set_threads(learner, n = 1L)`（单个 learner 或列表都行；线程参数名现探 `learner$param_set$ids(tags = "threads")`）。**写成 `set_threads(learner, nthreads = 1)` 是静默反向的**：形参只有 `(x, n, ...)`，错名被 `...` 吞掉、`n` 落到默认值 `availableCores()`，线程反而拉满。
 
 ## 默认工作流
 
@@ -458,7 +466,7 @@ skill.md 保持精简；遇到以下具体需求时，读取对应知识文件�
 | 直接 `task$select()` 污染原对象 | 先 `$clone(deep = TRUE)` |
 | PipeOp 用 `|>` 串联 | `%>>%` |
 | 手写嵌套 CV | `auto_tuner()` + 外层 `resample()` |
-| 自动开并行 | 先询问用户 |
+| 假设机器空闲就开满并行 | 先探测 `availableCores()` + `ps_system_memory()` 再定 workers |
 | 开发期评估测试集 | 完全定型后经用户授权 |
 | 用 123、42 等常见种子 | 用 3847、7291 等随机值 |
 
@@ -470,7 +478,7 @@ skill.md 保持精简；遇到以下具体需求时，读取对应知识文件�
 - [ ] 图管道是否使用 `%>>%`，末端是否 `as_learner()`？
 - [ ] 调参/特征选择是否使用 `auto_tuner()` / `auto_fselector()`？
 - [ ] 若要报告调参流程泛化性能，是否使用嵌套重抽样？
-- [ ] 并行计算是否先获得用户授权？
+- [ ] 并行前是否先探测可用资源（核心数 + 内存负载）并按负载定 workers、外层并行时把 learner 内部线程压成 1？
 - [ ] 种子是否避开了 1、42、123 等常见值？
 - [ ] 嵌套重抽样是否仅用于无偏比较，超参数调优是否用 `$train(task)`？
 - [ ] 对复杂 GraphLearner 是否利用了 `ppl("branch")` 分支路由调参？

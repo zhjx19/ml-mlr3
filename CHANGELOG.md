@@ -7,7 +7,8 @@
 ### Changed
 - **按「AI 自己也能做对就不写」瘦身本轮新增**（用户 2026-09-26 新纪律）。为什么改：SKILL.md 是常驻 Agent 上下文的载荷，每多一行都在稀释真正拦得住错的约束；把可当场探测的清单当知识存进去，跟上一轮抄 NEWS 版本账目是同一个病。具体砍掉：`rr$iters` 对照行、`$score()` / `$encapsulate()` 形参枚举、`rr$errors` / `learner$log` 列名枚举、`datefeatures` 的 20 个开关名单（改为给探测命令 `mlr_pipeops$get("datefeatures")$param_set$ids()`）、`mlr3verse` 的 11 个 selector 名单（改为 `grep("^selector", getNamespaceExports("mlr3verse"))`，本轮实测 n=11）、bootstrap 的 train/OOB 行数流水账、红线 5 里"粒度"与"内部线程"两条并列压成一条。保留判据：不写会不会做错（会）→ 留；能不能现探（能）→ 只留探测方法。SKILL.md 488 → 479 行。
 - **版本锚定改为「现场探测纪律 + 一行实测记录」**。为什么改：上一轮把上游包 NEWS 的增删条目连同版本号抄进了 SKILL.md，形成一张需要持续维护、且会随环境腐烂的版本对照表——用户明确指出这类版本号信息不必进技能。现在规则只有一条：照抄任何对象名/参数名前先当场探测（`mlr_pipeops$keys()`、`$param_set$ids()`、`getNamespaceExports()`、`names(formals(...))`）。全文只保留一行实测记录（日期 + 环境 + 通过率），它回答"这些示例最近何时、在什么环境跑通"，跑通回归后刷新。
-- **`set_threads()` / 并行纪律写进红线 5**。为什么改：20 章复现里并行只授权了一次（Ch13），暴露出技能只写"要授权"却没写授权后怎么正确地并行——粒度是重抽样迭代（折），且外层并行下必须把 learner 内部线程压成 1，否则 N 个 worker 各开满核互相争抢。同时记录一个静默反向陷阱：`set_threads(learner, nthreads = 1)` 的错名被 `...` 吞掉，`n` 落到默认值 `availableCores()`，线程反而被设成满核（实测 20）。
+- **红线 5 从"并行必须授权"改为"并行自动启用 + 必须先量可用资源"**（用户 2026-09-26 改口）。为什么改：项目里那套"全程单线程、并行要先请示"的约束来自他当时在同一台机器上同时忙很多事，是**临时会话条件**而非长期政策；而"授权"这个动作本身拦不住真实风险——风险是**凭空假设机器空闲**：本机 `future::availableCores()` 恒报 20，同期 `ps::ps_system_memory()` 报内存已用 73%，只盯核心数就会开满 worker 把机器压死。现在正文给探测口径（`availableCores()` 定额度、`ps_system_memory()` 看负载、`percent` 高就下调、跑完 `plan("sequential")` 复原），并写下两个不能用处的实测证据：`future` 没有 `availableMemory()`（只导出 `availableCores`/`availableWorkers`），`memory.limit()` 已不再支持（实测告警且只返回 `Inf`）。断言同步改名 `parallel_authorized` → `parallel_resource_checked`：判据从"出现 `future::plan` 但全文无授权询问"改成"出现 `future::plan` 但全文未探测资源"；A 组黄金样例（`evals/outputs/eval-1.md` 与 selftest 黄金串）改为真写一段"探测 → `set_threads(n = 1L)` → `plan()`"的示范，让这条断言在 PASS 方向上也被实际跑过一次，而不是代码里没出现 `plan()` 就白拿 PASS。
+- **`set_threads()` / 折粒度纪律保留在红线 5**。为什么保留：并行粒度是重抽样迭代（折），外层一开并行，learner 内部线程必须压成 1，否则 N 个 worker 各开满核互相争抢——这条与授权政策无关，是并行的正确用法。同时保留一个静默反向陷阱：`set_threads(learner, nthreads = 1)` 的错名被 `...` 吞掉，`n` 落到默认值 `availableCores()`，线程反而被设成满核（实测 20）。
 - **`resampling.md` 新增 §10（bootstrap / 报错取消 / 分层口径 / 逐折表）**，§1 选择矩阵加"想要 bootstrap"一行。为什么改：这几条都是复现中真实付出过代价的事实，且今天在现网全部可复现——bootstrap 分析集携带重复行号，绝大多数 PipeOp 在 `$train()` 里断言失败（同一 task 换普通 learner 无恙）；`resample()` 一折出错即取消全部迭代、不返回部分结果；分层不是 `rsmp()` 的参数而是 `stratum` 列角色（实测各折正类占比 sd 0.1095 → 0.0075）；`$score()`（逐折）与 `$aggregate()`（标量均值）是两个口径，`$score()` 形参里没有 `aggregate` 开关。
 
 ### Fixed
@@ -32,6 +33,8 @@
 - `Rscript scripts/verify_examples.R` → 18/18 PASS（exit 0，无 SKIP），2026-09-26 于 R 4.6.1 / mlr3 1.8.0 / mlr3pipelines 0.12.0 / mlr3tuning 1.7.0 / mlr3fselect 1.7.0 / paradox 1.0.1
 - `node scripts/run_evals.mjs --selftest` → 引擎自检 PASS（黄金 0 FAIL、违规 5/5、未闭合 fence 5/5）
 - `node scripts/run_evals.mjs` → 26 PASS / 0 FAIL / 0 WARN（6 个回答）
+- `node scripts/run_evals.mjs evals/outputs/negative/*.md` → 12 FAIL 全部抓获，含改名后的 `parallel_resource_checked`（违规样本 `workers = 16` 且全文无资源探测）
+- 资源探测的两条新说法（`availableMemory` 不存在 / `memory.limit()` 已弃用返回 `Inf` / `ps_system_memory()` 字段）钉进用例 18，本轮实测通过
 
 ### Meta
 - `.claude-plugin/plugin.json` 2.1.0 与 `marketplace.json` 2.1.1 此前各说各话，统一为 2.2.0。为什么改：两个通道版本号不一致，安装方无法判断自己拿到的是哪一版。

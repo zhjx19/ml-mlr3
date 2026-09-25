@@ -120,15 +120,17 @@ rr_nested$aggregate(msr("classif.auc"))
 
 内层 CV 用于选超参数，外层 CV 用于估计调参流程性能。不要混淆两者。
 
-## 9. 并行提醒
+## 9. 并行：先量资源，再定 workers
 
-重抽样和调参可并行，但必须先获得用户授权：
+重抽样和调参可以自动并行，不必征求授权；要防的是**凭空假设机器空闲**。先看两个数——CPU 额度是上限、不代表空闲，内存那一项才是真实负载信号：
 
 ```r
-parallel::detectCores()
-# 询问用户后：
-future::plan("multisession", workers = n)
+future::availableCores()   # CPU 额度（本机实测恒为 20，即使机器正忙）
+ps::ps_system_memory()     # total / avail / percent（实测 percent 73.1）
+future::plan("multisession", workers = n)   # Windows 用 multisession
 ```
+
+`n` 从 `availableCores() - 1L` 起步，按 `percent` 和"用户是否在同一机器上干别的事"下调；装不下就宁可 `workers = 1L` 并说明原因，跑完 `future::plan("sequential")` 复原。两个探测的坑：`future` **没有** `availableMemory()`（只有 `availableCores` / `availableWorkers`），`memory.limit()` 已不再支持（实测只告警并返回 `Inf`）——都不能当负载用；没装 `ps` 就直接保守取档，别为了探测硬装包。
 
 粒度是**重抽样迭代（折）**：`resample()` / `benchmark()` / `auto_tuner()` 把「一折训练+预测」作为一个 future 派发。外层并行开起来后，learner 内部线程必须压成 1，否则每个 worker 各自开满核互相争抢：
 

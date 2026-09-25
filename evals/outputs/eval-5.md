@@ -44,4 +44,4 @@ pred_data |>
   geom_hline(yintercept = 0, color = "red")
 ```
 
-残差若呈喇叭形，下一步考虑对目标做对数变换再比一轮。并行与测试集评估照例：先经你确认。
+残差若呈喇叭形，下一步考虑对目标做对数变换再比一轮。并行按机器实际资源自动开（先 `future::availableCores()` 探额度、用 `ps::ps_system_memory()` 看内存负载，workers 从 `cores - 1L` 起按负载下调，外层并行时 `set_threads(learner, n = 1L)`），测试集评估照例先经你确认。

@@ -69,10 +69,11 @@ const REGISTRY = {
       .map(({ n, text }) => `第 ${n} 行: ${text.trim().slice(0, 80)}`);
     return hits.length ? { status: "FAIL", detail: hits.join("; ") } : { status: "PASS" };
   },
-  parallel_authorized(ctx) {
+  parallel_resource_checked(ctx) {
+    // 红线 5 新口径：并行可自动启用，但必须先量可用资源，不能凭空假设机器空闲。
     if (!/future::plan|plan\s*\(/.test(ctx.code)) return { status: "PASS" };
-    const asked = /询问|是否需要|是否使用|是否允许|征得|授权|许可|征询|permission/i.test(ctx.text);
-    return asked ? { status: "PASS" } : { status: "FAIL", detail: "出现 future::plan 但全文无并行授权询问" };
+    const probed = /availableCores|availableWorkers|detectCores|ps_system_memory/.test(ctx.text);
+    return probed ? { status: "PASS" } : { status: "FAIL", detail: "出现 future::plan 但全文未探测可用资源（availableCores / ps_system_memory）" };
   },
   refuses_violation(ctx) {
     // heuristic：eval-2 类拦截题，回答须含拒绝/纠正语义
@@ -172,6 +173,11 @@ function selftest() {
     "rr = resample(train_task, glrn, rsmp(\"cv\", folds = 5))",
     "rr$aggregate(msr(\"classif.auc\"))",
     "autoplot(rr, type = \"roc\")",
+    "# 并行自动启用，先量资源再定 workers（availableCores 只报上限，内存看 ps_system_memory）",
+    "cores = future::availableCores()",
+    "mem = ps::ps_system_memory()",
+    "set_threads(glrn, n = 1L)   # 外层按折并行 → learner 内部线程压成 1",
+    "future::plan(\"multisession\", workers = min(cores - 1L, 8L))",
     "# 模型定型后询问用户：是否允许对保留测试集做一次最终评估？（split$test 此前不得使用）",
     "```",
   ].join("\n");
@@ -183,13 +189,13 @@ function selftest() {
     "g = po(\"scale\") |> po(\"pca\")",
     "y <- 5",
     "f = function(x) ifelse(x > 1, 1, 0)",
-    "future::plan(\"multisession\", workers = 8)",
+    "future::plan(\"multisession\", workers = 8)   # 违规：没量过机器就定 workers",
     "```",
   ].join("\n");
 
   const allAsserts = [
     { name: "no_common_seed" }, { name: "no_dev_testset_use" }, { name: "r_coding_style" },
-    { name: "pipeop_pipe_syntax" }, { name: "parallel_authorized" }, { name: "visualizes_evaluation", severity: "WARN" },
+    { name: "pipeop_pipe_syntax" }, { name: "parallel_resource_checked" }, { name: "visualizes_evaluation", severity: "WARN" },
   ];
   const fake = { assertions: allAsserts };
   const good = runAssertions(fake, goodSample);
@@ -200,7 +206,7 @@ function selftest() {
   const goodFails = good.filter((r) => r.status === "FAIL");
   const badFails = bad.filter((r) => r.status === "FAIL").map((r) => r.name);
   const unclosedFails = badUnclosed.filter((r) => r.status === "FAIL").map((r) => r.name);
-  const expectedBad = ["no_common_seed", "no_dev_testset_use", "r_coding_style", "pipeop_pipe_syntax", "parallel_authorized"];
+  const expectedBad = ["no_common_seed", "no_dev_testset_use", "r_coding_style", "pipeop_pipe_syntax", "parallel_resource_checked"];
   const missing = expectedBad.filter((n) => !badFails.includes(n));
   const missingUnclosed = expectedBad.filter((n) => !unclosedFails.includes(n));
 

@@ -541,6 +541,21 @@ results = c(
     stopifnot(identical(as.integer(l_bad$param_set$values$num.threads), ncores_b))
     if (ncores_b > 1L) stopifnot(as.integer(l_bad$param_set$values$num.threads) != 1L)  # 单核机器上两者重合，跳过
 
+    # 5) 资源探测：availableCores 只报额度；future 没有 availableMemory()，memory.limit() 在 Windows 是 Inf
+    stopifnot(!("availableMemory" %in% getNamespaceExports("future")))
+    stopifnot(all(c("availableCores", "availableWorkers") %in% getNamespaceExports("future")))
+    if (requireNamespace("ps", quietly = TRUE)) {
+      m = ps::ps_system_memory()
+      stopifnot(all(c("total", "avail", "percent") %in% names(m)), m$total > 0, m$avail < m$total)
+    }
+    # memory.limit() 已不再支持（实测告警且只返回 Inf），不是可用的内存信号
+    if (.Platform$OS.type == "windows") {
+      ml_warned = FALSE
+      ml_val = withCallingHandlers(memory.limit(),
+        warning = \(w) { ml_warned <<- TRUE; invokeRestart("muffleWarning") })
+      stopifnot(ml_warned, is.infinite(ml_val))
+    }
+
     TRUE
   })
 )
