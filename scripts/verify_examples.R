@@ -478,6 +478,70 @@ results = c(
     stopifnot(at_g$tuning_result[["pca.rank."]] >= 2L && at_g$tuning_result[["pca.rank."]] <= 5L)
     stopifnot(at_g$tuning_result[["encode.method"]] %in% c("treatment", "one-hot"))
     TRUE
+  }),
+
+  ## 重抽样实测坑：bootstrap 重复主键 / 封装兜底 / 分层口径 / 线程参数
+  run_case("重抽样实测坑·bootstrap/封装兜底/分层/线程", {
+    if (!requireNamespace("ranger", quietly = TRUE)) skip("ranger 未安装，跳过线程参数断言")
+    set.seed(9137)
+    n_b = 200L
+    d_b = data.table(x1 = rnorm(n_b), x2 = rnorm(n_b))
+    d_b$y = factor(fifelse(d_b$x1 + d_b$x2 > 0.8, "min", "maj"), levels = c("min", "maj"))
+    t_b = as_task_classif(d_b, target = "y", positive = "min")
+    errored_b = \(expr) inherits(tryCatch(force(expr), error = identity), "error")
+
+    # 1) rsmp() 没有 stratify；分层靠 stratum 列角色
+    stopifnot(errored_b(rsmp("cv", folds = 5L, stratify = TRUE)))
+    spread_b = \(tk) {
+      cv = rsmp("cv", folds = 5L); cv$instantiate(tk)
+      sd(sapply(seq_len(5L), \(k) mean(tk$data(rows = cv$test_set(k))$y == "min")))
+    }
+    plain_spread = spread_b(t_b)
+    t_strat = t_b$clone(deep = TRUE)
+    t_strat$set_col_roles("y", roles = c("target", "stratum"))
+    stopifnot(spread_b(t_strat) < plain_spread)
+
+    # 2) bootstrap 分析集携带重复行号 → 图学习器在 PipeOp 内断言失败；普通学习器无恙
+    stopifnot(length(t_b$row_ids) == n_b)
+    rr_bs_plain = resample(t_b, lrn("classif.rpart"), rsmp("bootstrap", repeats = 3L))
+    stopifnot(rr_bs_plain$iters == 3L)
+    stopifnot(length(rr_bs_plain$resampling$train_set(1L)) == n_b)
+    stopifnot(length(unique(rr_bs_plain$resampling$train_set(1L))) < n_b)
+    stopifnot(length(rr_bs_plain$resampling$test_set(1L)) < n_b)
+    stopifnot(errored_b(resample(t_b, (po("scale") %>>% lrn("classif.rpart")) |> as_learner(),
+      rsmp("bootstrap", repeats = 3L))))
+
+    # 3) 封装/兜底只能走 $encapsulate() 方法；fallback 形参必填；字段与 active binding 只读
+    gl_e = (po("scale") %>>% lrn("classif.rpart")) |> as_learner()
+    stopifnot(errored_b(gl_e$encapsulate("evaluate")))
+    stopifnot(errored_b({gl_e$encapsulation = c(train = "evaluate", predict = "evaluate")}))
+    stopifnot(errored_b({gl_e$fallback = lrn("classif.featureless")}))
+    stopifnot(errored_b(lrn("classif.rpart", fallback = lrn("classif.featureless"))))
+    stopifnot(default_fallback(lrn("classif.rpart"))$id == "classif.featureless")
+    stopifnot(default_fallback(lrn("regr.lm"))$id == "regr.featureless")
+    gl_e$encapsulate("evaluate", default_fallback(lrn("classif.rpart")))
+    stopifnot(identical(names(gl_e$encapsulation), c("train", "predict")))
+    stopifnot(gl_e$fallback$id == "classif.featureless")
+    rr_enc = resample(t_b, gl_e, rsmp("bootstrap", repeats = 5L))
+    stopifnot(rr_enc$iters == 5L)                       # 兜底后全部折完成
+    stopifnot(nrow(rr_enc$errors) == 5L)                # 但每折都捕获到错误，记录在此
+    stopifnot(identical(names(rr_enc$errors), c("iteration", "condition")))
+    stopifnot(is.null(rr_enc$n_resample_iterations))    # 不存在的访问器静默给 NULL
+    stopifnot(!("aggregate" %in% names(formals(mlr3::ResampleResult$public_methods$score))))
+    stopifnot(nrow(rr_enc$score(msr("classif.ce"))) == 5L)
+    stopifnot(is.numeric(rr_enc$aggregate(msr("classif.ce"))))
+
+    # 4) set_threads 形参是 (x, n, ...)；写错名字 = 静默设满核
+    l_th = lrn("classif.ranger"); l_bad = lrn("classif.ranger")
+    stopifnot("num.threads" %in% l_th$param_set$ids(tags = "threads"))
+    set_threads(l_th, n = 1L)
+    stopifnot(identical(as.integer(l_th$param_set$values$num.threads), 1L))
+    set_threads(l_bad, nthreads = 1L)
+    ncores_b = as.integer(future::availableCores())
+    stopifnot(identical(as.integer(l_bad$param_set$values$num.threads), ncores_b))
+    if (ncores_b > 1L) stopifnot(as.integer(l_bad$param_set$values$num.threads) != 1L)  # 单核机器上两者重合，跳过
+
+    TRUE
   })
 )
 

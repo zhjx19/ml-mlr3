@@ -20,9 +20,9 @@ license: Apache-2.0
 
 ## API 现场校验（不背版本号）
 
-mlr3 生态迭代快，本技能不维护版本对照表：**版本号全文只出现在下面这一行实测记录里**，它回答"这些示例最近何时、在什么环境跑通"，不回答"哪个 API 从哪个版本起存在"。规则只有一条：**照抄任何对象名/参数名之前，先当场探测它是否存在**。示例的可执行契约由 `scripts/verify_examples.R`（17 例实跑）和 `scripts/run_evals.mjs`（静态断言）把守——改完示例代码这两个都必须重跑，跑通后刷新这行记录。
+mlr3 生态迭代快，本技能不维护版本对照表：**版本号全文只出现在下面这一行实测记录里**，它回答"这些示例最近何时、在什么环境跑通"，不回答"哪个 API 从哪个版本起存在"。规则只有一条：**照抄任何对象名/参数名之前，先当场探测它是否存在**。示例的可执行契约由 `scripts/verify_examples.R`（18 例实跑）和 `scripts/run_evals.mjs`（静态断言）把守——改完示例代码这两个都必须重跑，跑通后刷新这行记录。
 
-> 实测记录：2026-09-26 · R 4.6.1 / mlr3 1.8.0 / mlr3pipelines 0.12.0 / mlr3tuning 1.7.0 / mlr3fselect 1.7.0 / paradox 1.0.1 · `verify_examples.R` 17/17 PASS
+> 实测记录：2026-09-26 · R 4.6.1 / mlr3 1.8.0 / mlr3pipelines 0.12.0 / mlr3tuning 1.7.0 / mlr3fselect 1.7.0 / paradox 1.0.1 · `verify_examples.R` 18/18 PASS
 
 ```r
 mlr_learners$keys(); mlr_pipeops$keys(); mlr_measures$keys()
@@ -55,6 +55,10 @@ getNamespaceExports("mlr3verse")                   # 到底哪些函数被再导
 | `po("subsample", frac = .5, stratify = TRUE, use_groups = FALSE)` | `po("subsample", stratify = TRUE)`（报 `Cannot combine stratification with grouping`） |
 | `mlr3pipelines::selector_positive()`（等 6 个符号类） | 裸写 `selector_positive()` / `neg()`（`mlr3verse` 不再导出这 6 个，且 `neg` 压根不存在） |
 | `lts("classif.ranger.default")$get_learner()` | `search_space = lts(...)`（`lts()` 返回 TuningSpace R6，`$learner` 只是 id 字符串） |
+| `learner$encapsulate("evaluate", default_fallback(learner))` | `learner$encapsulate = c(train = , predict = )` / `learner$fallback = lrn(...)`（前者撞 `locked binding`，后者撞 `Field/Binding is read-only`） |
+| `task$set_col_roles("y", roles = c("target", "stratum"))` 后再 `rsmp("cv")` | `rsmp("cv", stratify = TRUE)`（报 `Cannot set argument 'stratify' ... not a constructor argument, not a parameter`） |
+| `set_threads(learner, n = 1L)` | `set_threads(learner, nthreads = 1)`（形参是 `x, n, ...`，错名被 `...` 吞掉，`n` 取默认值 `availableCores()` → 线程被设成**满核**，和想要的 1 正好相反） |
+| `rr$iters` | `rr$n_resample_iterations`（该成员不存在，R6 返回 `NULL` 而不报错——静默失效） |
 
 两条实测确认的纪律：`AutoTuner` / `AutoFselector` 的 `$clone(deep = TRUE)` 得到的是**全新未训练**对象（`$model`、`$archive` 为空），可以放心各自训练互不干扰——但 `Task` 的 `$select()` / `$filter()` 和 `$param_set$values` 仍是原地修改（见红线 2）。`fs("rfecv")` 配最小化指标（`classif.ce` 等）时，必须自己核对 `selection_result` 里特征数与性能的走向是否单调，别默认它选对了。
 
@@ -142,6 +146,11 @@ rr_nested$aggregate(msr("classif.auc"))  # 无偏估计调参后泛化误差
 ### 红线 5：并行计算必须授权
 
 不得自动启用并行。流程：`parallel::detectCores()` → 询问用户 → 获许可后才设 `future::plan("multisession", workers = n)`。Windows 用 `multisession`。
+
+授权之后还有两条实测纪律：
+
+- **并行粒度是重抽样迭代（折）**。`resample()` / `benchmark()` / `auto_tuner()` 把「一次折训练+预测」作为一个 future 派发，不是把一次拟合内部拆开。
+- **外层并行一旦开启，learner 内部线程必须压成 1**，否则 N 个 worker 各自开满核互相争抢：`set_threads(learner, n = 1L)`（可传单个 learner 或 learner 列表；线程参数名通过 `learner$param_set$ids(tags = "threads")` 现场探测，ranger `num.threads`、xgboost `nthread`、lightgbm `num_threads`，`set_threads()` 负责映射）。**写成 `set_threads(learner, nthreads = 1)` 是静默反向的**——形参只有 `x, n, ...`，错名被 `...` 吞掉后 `n` 落到默认值 `availableCores()`，实测 `num.threads` 变成 20，正好是要避免的状态。
 
 ## 默认工作流
 
@@ -420,11 +429,18 @@ rr_nested$aggregate(msr("classif.auc"))
 
 ## 错误处理与日志
 
+封装与兜底**只能通过方法设置**。实测：`learner$encapsulate = c(train = , predict = )` 报 `cannot change value of locked binding for 'encapsulate'`（`encapsulate` 是方法名，不是字段），`learner$encapsulation = ...` 和 `learner$fallback = ...` 报 `Field/Binding is read-only`，构造参数 `lrn(..., fallback = )` 同样报 read-only。
+
 ```r
-learner$encapsulate = c(train = "evaluate", predict = "evaluate")
-learner$fallback = lrn("classif.featureless")
+learner$encapsulate("evaluate", default_fallback(learner))  # train / predict 同时封装
+learner$encapsulation   # 命名字符向量：train = "evaluate", predict = "evaluate"
+learner$fallback$id     # 兜底学习器 id
 lgr::get_logger("mlr3")$set_threshold("warn")
 ```
+
+`$encapsulate(method, fallback, when)` 的 `fallback` **没有默认值**：只写 `$encapsulate("evaluate")` 会在调用当下报 `Assertion on 'fallback' failed: Must inherit from class 'Learner', but has class 'NULL'`。`default_fallback(learner)` 已导出，按任务类型返回 `classif.featureless` / `regr.featureless`。`when` 只接受函数或 `NULL`（传字符串报 `Must be a function`），一般不用。
+
+`resample()` 只要有一折训练报错就**取消全部迭代并抛错**（日志 `Caught simpleError. Canceling all iterations ...`），不返回部分结果。封装后同样的折由 fallback 顶上、整体跑完，出错折记录在 `rr$errors`（列 `iteration`、`condition`）——但那几折的分数来自兜底模型，不能当成被评估管道的真实性能。典型触发场景（bootstrap 分析集与 PipeOp 主键断言冲突等）见 `references/resampling.md` §10。
 
 ## 知识路由表
 
@@ -469,4 +485,4 @@ skill.md 保持精简；遇到以下具体需求时，读取对应知识文件�
 - [ ] 对复杂 GraphLearner 是否利用了 `ppl("branch")` 分支路由调参？
 - [ ] 不平衡处理（SMOTE 等）是否封装在图中并用 `auto_tuner` 确保每折独立采样？
 - [ ] 代码是否遵守全局 R 编码铁律（`=`、`|>`/`%>>%`、`\(x)`、`.by`）？
-- [ ] 示例代码改动后运行 `scripts/verify_examples.R`，17 个案例全 PASS？
+- [ ] 示例代码改动后运行 `scripts/verify_examples.R`，18 个案例全 PASS？
