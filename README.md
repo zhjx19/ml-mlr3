@@ -4,8 +4,8 @@
 
 [![Agent Skills](https://img.shields.io/badge/Agent%20Skills-ml--mlr3-blueviolet)](SKILL.md)
 [![gates](https://github.com/zhjx19/ml-mlr3/actions/workflows/gates.yml/badge.svg)](https://github.com/zhjx19/ml-mlr3/actions/workflows/gates.yml)
-[![Live Verify](https://img.shields.io/badge/verify_examples.R-19%2F19%20PASS-brightgreen)](#验证与测试)
-[![Hallucination audit](https://img.shields.io/badge/documented_examples-169%20keys%2C%200%20hallucinated-brightgreen)](examples/EXAMPLE.md)
+[![Live Verify](https://img.shields.io/badge/verify_examples.R-20%2F20%20PASS-brightgreen)](#验证与测试)
+[![Hallucination audit](https://img.shields.io/badge/documented_examples-168%20keys%2C%200%20hallucinated-brightgreen)](examples/EXAMPLE.md)
 [![Evals](https://img.shields.io/badge/evals-6%20prompts%20%2B%20assertions-orange)](#验证与测试)
 [![GitHub](https://img.shields.io/badge/GitHub-zhjx19%2Fml--mlr3-black)](https://github.com/zhjx19/ml-mlr3)
 [![skills.sh](https://skills.sh/b/zhjx19/ml-mlr3)](https://skills.sh/zhjx19/ml-mlr3)
@@ -110,7 +110,7 @@ ml-mlr3/
 │   ├── evaluation.md          # 指标、ROC/PRC/残差图、benchmark、最终评估
 │   └── advanced-workflows.md  # 5 大进阶工作流（调优benchmark/图调参/不平衡/联合调优/早停）
 ├── scripts/
-│   ├── verify_examples.R      # 骨架回归：19 个案例一键实跑（含字典探针，防文档写回已移除的 API）
+│   ├── verify_examples.R      # 骨架回归：20 个案例一键实跑（含字典探针，防文档写回已移除的 API）
 │   ├── check_answer_api.R     # 幻觉键体检：抓回答里字典中不存在的 lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()
 │   └── run_evals.mjs          # evals 断言评分器（零依赖 Node）
 ├── examples/
@@ -118,7 +118,7 @@ ml-mlr3/
 │   └── replay/                # 四份真实对照答案（baseline-* / skilled-*），可被上面两个评分器直接吃
 ├── evals/outputs/             # 评测回答存放处（eval-<id>.md）
 └── .github/workflows/
-    └── gates.yml              # CI：全量 19 例（ubuntu + windows）+ 断言引擎自检
+    └── gates.yml              # CI：全量 20 例（ubuntu + windows）+ 断言引擎自检
 ```
 
 ## 验证与测试
@@ -151,11 +151,12 @@ Rscript scripts/verify_examples.R
 [PASS] 文档签名·图调参与 lts 预置空间
 [PASS] 重抽样实测坑·bootstrap/封装兜底/分层/线程
 [PASS] 文档口径·spatialsign 归属 / 依赖包 / validate='test' 静默
+[PASS] 文档口径·robustify 图访问器 / 参数 id / 覆盖默认值
 
-=== 汇总：19/19 PASS ===
+=== 汇总：20/20 PASS ===
 ```
 
-**CI 门禁 ≠ 免跑凭证。** `.github/workflows/gates.yml` 在每次 push / PR 上自动做三件事：装好 `mlr3verse` 依赖树后**全量**跑 19 例（ubuntu + windows 双平台，不砍案例、不砍折数、不砍预算）→ 给全部文档示例做一次幻觉键体检 → 跑断言引擎自检。硬依赖（`e1071` / `ranger` / `xgboost` / `bestNormalize`）装不上直接红；可选依赖（`ps` / `mlr3tuningspaces`）缺失由脚本记 SKIP，汇总行会点名，不算失败。
+**CI 门禁 ≠ 免跑凭证。** `.github/workflows/gates.yml` 在每次 push / PR 上自动做三件事：装好 `mlr3verse` 依赖树后**全量**跑 20 例（ubuntu + windows 双平台，不砍案例、不砍折数、不砍预算）→ 给全部文档示例做一次幻觉键体检 → 跑断言引擎自检。硬依赖（`e1071` / `ranger` / `xgboost` / `bestNormalize`）装不上直接红；可选依赖（`ps` / `mlr3tuningspaces`）缺失由脚本记 SKIP，汇总行会点名，不算失败。
 
 但**改动示例代码后仍须本机实跑一遍**（约 5 分钟），并把通过率写进 CHANGELOG——CI 只证明"这两个平台、这个时点的 CRAN 快照"跑得通，而你交付给用户的环境是你自己的机器；两者的实测记录不能互相顶替。
 
@@ -177,7 +178,7 @@ node scripts/run_evals.mjs              # 逐断言评分，任一 FAIL 退出�
 Rscript scripts/check_answer_api.R examples/replay/skilled-eval-1.md examples/replay/baseline-eval-1.md
 ```
 
-它把回答里所有 `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` 的首参逐个对着 mlr3verse 字典探测，键不存在就点名并附字典自己的 "Did you mean" 提示，退出码 1。本机实测：`baseline-*` 两份 4+4 个幻觉键全部被抓；把 `SKILL.md` + 全部 `references/` + A 组 6 份 + `examples/replay/skilled-*` 一起喂进去，**169 个唯一键 0 幻觉**。CI 每次 push 都做这同一次体检——skill 教的代码哪天因为上游改名而失效，门禁会先红，而不是等用户投诉。
+它把回答里所有 `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` 的首参逐个对着 mlr3verse 字典探测，键不存在就点名并附字典自己的 "Did you mean" 提示，退出码 1。本机实测：`baseline-*` 两份 4+4 个幻觉键全部被抓；把 `SKILL.md` + 全部 `references/` + A 组 6 份 + `examples/replay/skilled-*` 一起喂进去，**168 个唯一键 0 幻觉**（这个数随正文增删而变，以现跑为准）。CI 每次 push 都做这同一次体检——skill 教的代码哪天因为上游改名而失效，门禁会先红，而不是等用户投诉。
 
 ## 致谢
 

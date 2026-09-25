@@ -590,6 +590,30 @@ results = c(
     stopifnot(nrow(rr_leak$errors) == 0L)
     stopifnot(is.finite(rr_leak$aggregate(msr("classif.auc"))))
     TRUE
+  }),
+  run_case("文档口径·robustify 图访问器 / 参数 id / 覆盖默认值", {
+    set.seed(6103)
+    d_rb = data.table(y = factor(rep(c("yes", "no"), each = 30)),
+                      x_num = c(rnorm(50), NA, NA, rnorm(8)),
+                      x_ch  = sample(c("a", "b", "c"), 60, TRUE),
+                      x_ord = ordered(sample(1:3, 60, TRUE)))
+    t_rb = as_task_classif(d_rb, target = "y", positive = "yes")
+    g_rb = ppl("robustify")
+    # 正文说「$edges 是 14 x 4 边表、$param_set$ids() 有 35 个 node.param、$nodes/$pipe 在 Graph 上是 NULL」
+    stopifnot(identical(dim(g_rb$edges), c(14L, 4L)))
+    stopifnot(length(g_rb$param_set$ids()) == 35L)
+    stopifnot(is.null(g_rb$nodes), is.null(g_rb$pipe))
+    stopifnot(all(c("featureunion_robustify", "collapsefactors", "encode") %in% unique(unlist(g_rb$edges))))
+    # 正文说「$values 已装 28 条默认值（不是空 list）」
+    stopifnot(length(g_rb$param_set$values) == 28L)
+    # 正文说「按 节点名.参数名 覆盖：encode.method」——必须真能被 GraphLearner 接受并跑通
+    stopifnot(all(c("encode.method", "encode.affect_columns") %in% g_rb$param_set$ids()))
+    glrn_rb = as_learner(g_rb %>>% lrn("classif.rpart", predict_type = "prob"))
+    glrn_rb$param_set$values[["encode.method"]] = "treatment"
+    stopifnot(identical(glrn_rb$param_set$values$encode.method, "treatment"))
+    glrn_rb$train(t_rb)
+    stopifnot(nrow(glrn_rb$predict_newdata(head(d_rb, 5))$data) == 5L)   # 注意：predict 不接受 type= 参数，改预测类型走 lrn(predict_type=)
+    TRUE
   })
 )
 

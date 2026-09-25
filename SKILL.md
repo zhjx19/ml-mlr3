@@ -25,9 +25,9 @@ license: Apache-2.0
 
 ## API 现场校验（不背版本号）
 
-mlr3 生态迭代快，本技能不维护版本对照表：**版本号全文只出现在下面这一行实测记录里**，它回答"这些示例最近何时、在什么环境跑通"，不回答"哪个 API 从哪个版本起存在"。规则只有一条：**照抄任何对象名/参数名之前，先当场探测它是否存在**。示例的可执行契约由 `scripts/verify_examples.R`（19 例实跑）和 `scripts/run_evals.mjs`（静态断言）把守——改完示例代码这两个都必须重跑，跑通后刷新这行记录。
+mlr3 生态迭代快，本技能不维护版本对照表：**版本号全文只出现在下面这一行实测记录里**，它回答"这些示例最近何时、在什么环境跑通"，不回答"哪个 API 从哪个版本起存在"。规则只有一条：**照抄任何对象名/参数名之前，先当场探测它是否存在**。示例的可执行契约由 `scripts/verify_examples.R`（20 例实跑）和 `scripts/run_evals.mjs`（静态断言）把守——改完示例代码这两个都必须重跑，跑通后刷新这行记录。
 
-> 实测记录：2026-09-26 · R 4.6.1 / mlr3 1.8.0 / mlr3pipelines 0.12.0 / mlr3tuning 1.7.0 / mlr3fselect 1.7.0 / paradox 1.0.1 · `verify_examples.R` 19/19 PASS
+> 实测记录：2026-09-26 · R 4.6.1 / mlr3 1.8.0 / mlr3pipelines 0.12.0 / mlr3tuning 1.7.0 / mlr3fselect 1.7.0 / paradox 1.0.1 · `verify_examples.R` 20/20 PASS
 
 ```r
 mlr_learners$keys(); mlr_pipeops$keys(); mlr_measures$keys()
@@ -67,7 +67,7 @@ getNamespaceExports("mlr3verse")                   # 到底哪些函数被再导
 
 ### pipeline 构造器与 PipeOp 是两个命名空间
 
-`ppl("robustify")` / `ppl("greplicate")` / `ppl("ovr")` / `ppl("stacking")` / `ppl("branch")` / `ppl("targettrafo")` / `ppl("convert_types")` 不在 `mlr_pipeops$keys()` 里，它们对应 `pipeline_*` 函数，形参各不相同：`greplicate(graph, n)`、`branch(graphs)`、`ovr(graph)`、`stacking(base_learners, super_learner)`、`targettrafo(graph)`、`convert_types(type_from, type_to)`。用之前 `names(formals(mlr3pipelines:::pipeline_x))` 或试构造一次，报错信息里的形参名是可信的。
+`ppl("robustify")` / `ppl("greplicate")` / `ppl("ovr")` / `ppl("stacking")` / `ppl("branch")` / `ppl("targettrafo")` / `ppl("convert_types")` 不在 `mlr_pipeops$keys()` 里，它们对应 `pipeline_*` 函数，**形参各不相同**且互不通用：用之前 `names(formals(mlr3pipelines:::pipeline_branch))` 现探，或直接试构造一次——报错信息里的形参名是可信的。
 
 ## 全局 R 编码铁律
 
@@ -221,24 +221,16 @@ rr$aggregate(measures)
 
 **依赖包提示（防"运行即报错"）**：示例用到的模型/算子对应 R 包——`classif.glmnet`→`glmnet`、`classif.ranger`→`ranger`、`classif.kknn`→`kknn`、`classif.xgboost`→`xgboost`（注意是 `xgboost` 本身，学习器由 mlr3verse 附带的 `mlr3learners` 提供，`mlr3xgboost` 是另一套带预置调参空间的实现，装了会覆盖同名键）、`classif.svm`→`e1071`（mlr3verse 默认附带，但其 `cost`/`gamma` 是条件参数，见「调优：auto_tuner」陷阱说明）、`po("smote")`→`smotefamily`、`yeojohnson`/`boxcox` 分支→`bestNormalize`、ROC/PRC 可视化→`precrec`、`tnr("mbo")`→`mlr3mbo`（mlr3verse 已附带）。运行前先确认已安装（缺则 `install.packages(...)`）；未安装的模型/分支改用可用替代（如未装 bestNormalize 就去掉 yeojohnson 分支）。想核对某个键到底要哪个包：`mlr_learners$get("classif.xgboost")$packages`。
 
-一键稳健预处理的 `ppl("robustify")` 生成一个**含 14 个 PipeOp 的非线性 DAG**（非简单线性流），覆盖大多数缺失值插补和因子编码场景。按执行顺序的核心节点：
+一键稳健预处理的 `ppl("robustify")` 展开是**含 14 个 PipeOp 的非线性 DAG**（不是线性串联），一次做掉：删常数 → 字符/有序因子转分类、日期转数值 → 数值列直方图采样插补 + 逻辑列经验分布插补 + 缺失指示器（这三路在 `featureunion_robustify` 处并行分叉再合并）→ 分类新水平视作缺失 → 修复因子水平 → 折叠稀有水平 → 独热编码 → 再删新增常数。节点名单与连边**现场探测**，别背：
 
-1. `removeconstants_prerobustify` — 删除常数特征
-2. `char_to_fct` — 字符 → 分类
-3. `POSIXct_to_dbl` — 日期/时间 → 数值
-4. `ord_to_fct` — 有序因子 → 分类
-5. `imputehist` — 数值特征直方图采样插补
-6. `impute_logicals` — 逻辑特征经验分布采样插补
-7. `missind` — 添加缺失值指示器
-8. `featureunion_robustify` — 并行合并上面的分支（这是 DAG 分叉点）
-9. `imputeoor` — 分类特征新水平编码缺失
-10. `fixfactors` — 修复分类水平（train/predict 对齐）
-11. `imputesample` — 插补修复水平引入的分类缺失
-12. `collapsefactors` — 折叠稀有关卡（默认 max 1000）
-13. `encode` — 分类特征独热编码
-14. `removeconstants_postrobustify` — 删除新增的常数特征
+```r
+g = ppl("robustify")
+g$edges                 # 14 x 4 边表（src / dst / src_params / dst_params），里面能看到 featureunion_robustify 分叉
+g$param_set$ids()       # 35 个 "节点名.参数名" 形式的可调 id；Graph 上 $nodes / $pipe 是 NULL，别找它们
+g$param_set$values      # 已经装了 28 条默认值（不是空 list），要改就在它上面覆盖
+```
 
-注意：这是**非线性图**，含 `featureunion` 并行分支，不是简单的线性串联。
+要单独改某一环（换成 treatment 编码 → `encode.method`；调折叠阈值 → `collapsefactors.no_collapse_above_prevalence` / `.target_level_count`；改 `missind.which`），先从 `$ids()` 里按 `节点名.参数名` 找到 id，再在构造好的 learner 上 `glrn$param_set$values[["encode.method"]] = "treatment"`（默认值用 `mlr_pipeops$get("collapsefactors")$param_set$default` 看，不要凭记忆写数字）。
 
 ```r
 glrn = ppl("robustify") %>>%   # task=task, learner=lrn 可选
@@ -339,13 +331,7 @@ at$train(train_task)
 at$tuning_result  # 看哪个预处理路径 + 学习器组合最优
 ```
 
-若需为分支内的学习器再加超参数（如 `classif.kknn.k`），用 `depends` 约束：
-
-```r
-glrn$param_set$add(
-  ps(classif.kknn.k = p_int(1, 32, depends = branch.selection == "classif.kknn"))
-)
-```
+分支内的学习器还要再调超参数（如 `classif.kknn.k`）时，用 `ps()` 显式声明搜索空间并加 `depends` 条件（`classif.kknn.k = p_int(1, 32, depends = branch.selection == "classif.kknn")`），写法见 `references/advanced-workflows.md` §2.2。
 
 ## 调优：auto_tuner
 
@@ -396,36 +382,7 @@ bmr$aggregate(measures)
 
 ### 进阶：比较经调优的算法
 
-更具现实意义的比较将 **auto_tuner + learner** 整体纳入 benchmark，比较「经超参数调优后」的不同算法：
-
-```r
-# 每个 learner 都包装为 auto_tuner
-at_svm = auto_tuner(
-  tuner = tnr("random_search"),
-  learner = lrn("classif.svm", type = "C-classification",
-                kernel = "radial", predict_type = "prob"),
-  search_space = ps(cost = p_dbl(1, 1e5, logscale = TRUE),
-                    gamma = p_dbl(1e-5, 1)),
-  resampling = rsmp("cv", folds = 4),
-  measure = msr("classif.auc"),
-  term_evals = 10)
-
-at_rf = auto_tuner(
-  tuner = tnr("random_search"),
-  learner = lrn("classif.ranger", predict_type = "prob"),
-  search_space = ps(num.trees = p_int(2, 10, trafo = \(x) 5 * x),
-                    mtry = p_int(3, 20)),
-  resampling = rsmp("cv", folds = 4),
-  measure = msr("classif.auc"),
-  term_evals = 10)
-
-# benchmark 比较调优后的算法（只用训练集，勿触碰测试集）
-design = benchmark_grid(tasks = train_task, learners = list(at_svm, at_rf),
-                        resamplings = rsmp("cv", folds = 5))
-bmr = benchmark(design)
-bmr$aggregate(msr("classif.auc"))
-autoplot(bmr, measure = msr("classif.auc"))
-```
+更具现实意义的比较是把 **auto_tuner + learner 整体**塞进 `benchmark_grid()`——比的是「各自调好参之后」哪个算法更强，而不是裸参数下的强弱。写法与 `at_svm` / `at_rf` 完整示例见 `references/advanced-workflows.md` §1（骨架回归用例 6 实跑的就是它）；要点只有三条：`auto_tuner()` 本身就是 Learner，可直接进 `learners = list(at_svm, at_rf)`；内层调参重抽样与外层比较重抽样是**两件事**，各配各的；外层仍只用 `train_task`。
 
 ### 嵌套重抽样：报告调参流程无偏泛化性能
 
@@ -489,4 +446,4 @@ skill.md 保持精简；遇到以下具体需求时，读取对应知识文件�
 - [ ] 对复杂 GraphLearner 是否利用了 `ppl("branch")` 分支路由调参？
 - [ ] 不平衡处理（SMOTE 等）是否封装在图中并用 `auto_tuner` 确保每折独立采样？
 - [ ] 代码是否遵守全局 R 编码铁律（`=`、`|>`/`%>>%`、`\(x)`、`.by`）？
-- [ ] 示例代码改动后运行 `scripts/verify_examples.R`，19 个案例全 PASS？
+- [ ] 示例代码改动后运行 `scripts/verify_examples.R`，20 个案例全 PASS？
