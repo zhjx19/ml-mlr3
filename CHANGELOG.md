@@ -5,6 +5,7 @@
 ## [2.2] — 2026-09-26 · 以 TMwR→mlr3 全量复现为证据源回灌 + 现场探测取代版本对照表
 
 ### Changed
+- **按「AI 自己也能做对就不写」瘦身本轮新增**（用户 2026-09-26 新纪律）。为什么改：SKILL.md 是常驻 Agent 上下文的载荷，每多一行都在稀释真正拦得住错的约束；把可当场探测的清单当知识存进去，跟上一轮抄 NEWS 版本账目是同一个病。具体砍掉：`rr$iters` 对照行、`$score()` / `$encapsulate()` 形参枚举、`rr$errors` / `learner$log` 列名枚举、`datefeatures` 的 20 个开关名单（改为给探测命令 `mlr_pipeops$get("datefeatures")$param_set$ids()`）、`mlr3verse` 的 11 个 selector 名单（改为 `grep("^selector", getNamespaceExports("mlr3verse"))`，本轮实测 n=11）、bootstrap 的 train/OOB 行数流水账、红线 5 里"粒度"与"内部线程"两条并列压成一条。保留判据：不写会不会做错（会）→ 留；能不能现探（能）→ 只留探测方法。SKILL.md 488 → 479 行。
 - **版本锚定改为「现场探测纪律 + 一行实测记录」**。为什么改：上一轮把上游包 NEWS 的增删条目连同版本号抄进了 SKILL.md，形成一张需要持续维护、且会随环境腐烂的版本对照表——用户明确指出这类版本号信息不必进技能。现在规则只有一条：照抄任何对象名/参数名前先当场探测（`mlr_pipeops$keys()`、`$param_set$ids()`、`getNamespaceExports()`、`names(formals(...))`）。全文只保留一行实测记录（日期 + 环境 + 通过率），它回答"这些示例最近何时、在什么环境跑通"，跑通回归后刷新。
 - **`set_threads()` / 并行纪律写进红线 5**。为什么改：20 章复现里并行只授权了一次（Ch13），暴露出技能只写"要授权"却没写授权后怎么正确地并行——粒度是重抽样迭代（折），且外层并行下必须把 learner 内部线程压成 1，否则 N 个 worker 各开满核互相争抢。同时记录一个静默反向陷阱：`set_threads(learner, nthreads = 1)` 的错名被 `...` 吞掉，`n` 落到默认值 `availableCores()`，线程反而被设成满核（实测 20）。
 - **`resampling.md` 新增 §10（bootstrap / 报错取消 / 分层口径 / 逐折表）**，§1 选择矩阵加"想要 bootstrap"一行。为什么改：这几条都是复现中真实付出过代价的事实，且今天在现网全部可复现——bootstrap 分析集携带重复行号，绝大多数 PipeOp 在 `$train()` 里断言失败（同一 task 换普通 learner 无恙）；`resample()` 一折出错即取消全部迭代、不返回部分结果；分层不是 `rsmp()` 的参数而是 `stratum` 列角色（实测各折正类占比 sd 0.1095 → 0.0075）；`$score()`（逐折）与 `$aggregate()`（标量均值）是两个口径，`$score()` 形参里没有 `aggregate` 开关。

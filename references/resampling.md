@@ -136,7 +136,7 @@ future::plan("multisession", workers = n)
 set_threads(learner, n = 1L)      # 单个 learner 或 learner 列表都支持
 ```
 
-`set_threads()` 的形参是 `(x, n = availableCores(), ...)`——写成 `set_threads(learner, nthreads = 1)` 不报错，错名被 `...` 吞掉、`n` 落到默认值，线程反而被设成**满核**（20 核机器上实测 `num.threads` = 20）。要自己核对参数名就用 `learner$param_set$ids(tags = "threads")`。各后端线程参数名不统一（ranger `num.threads` / xgboost `nthread` / lightgbm `num_threads`），交给 `set_threads()` 映射即可。
+`set_threads()` 的形参是 `(x, n = availableCores(), ...)`——写成 `set_threads(learner, nthreads = 1)` 不报错，错名被 `...` 吞掉、`n` 落到默认值，线程反而被设成**满核**（20 核机器实测 `num.threads` = 20）。不确定参数名就现探 `learner$param_set$ids(tags = "threads")`，映射交给 `set_threads()` 做。
 
 ## 10. 实测坑：bootstrap、报错取消、分层口径、逐折表
 
@@ -144,7 +144,7 @@ set_threads(learner, n = 1L)      # 单个 learner 或 learner 列表都支持
 
 ### bootstrap 分析集带重复行号，PipeOp 会崩
 
-`rsmp("bootstrap")` 的训练集是**有放回抽样**，行数恒等于 `task$nrow`，其中约 63% 是唯一观测（实测 n = 200 时各轮 train 都是 200 行，OOB test 为 70–78 行）。重复主键会让绝大多数 PipeOp 在 `$train()` 里断言失败：
+`rsmp("bootstrap")` 的训练集是**有放回抽样**，行号会重复。重复主键让绝大多数 PipeOp 在 `$train()` 里断言失败：
 
 ```r
 resample(train_task, (po("scale") %>>% lrn("classif.rpart")) |> as_learner(),
@@ -153,22 +153,21 @@ resample(train_task, (po("scale") %>>% lrn("classif.rpart")) |> as_learner(),
 # This happened in PipeOp scale's $train()
 ```
 
-同一个 task 换成普通 `lrn("classif.rpart")` 则正常跑完——问题出在图上，不在抽样本身。需要 bootstrap 时优先选 `rsmp("cv")` / `rsmp("subsampling")`；确实要用 bootstrap + 图，就显式封装并配兜底（见下），并记住那些折的分数来自兜底模型。
+同一个 task 换成普通 `lrn("classif.rpart")` 则正常跑完——问题出在图上，不在抽样本身。需要 bootstrap 时优先改用 `rsmp("cv")` / `rsmp("subsampling")`；确实要用 bootstrap + 图就显式封装并配兜底（见下），并记住那些折的分数来自兜底模型。
 
 ### `resample()` 遇错取消全部迭代
 
-任何一折训练报错，日志给出 `Caught simpleError. Canceling all iterations ...`，整个 `resample()` 抛错，**不返回部分结果**。让流程活下来的办法是封装 + 兜底（注意 `$encapsulate()` 是方法，`fallback` 形参必须显式给）：
+任何一折训练报错，日志给出 `Caught simpleError. Canceling all iterations ...`，整个 `resample()` 抛错，**不返回部分结果**。让流程活下来的办法是封装 + 兜底（`$encapsulate()` 是方法，`fallback` 形参必须显式给）：
 
 ```r
 glrn = (po("scale") %>>% lrn("classif.rpart")) |> as_learner()
 glrn$encapsulate("evaluate", default_fallback(lrn("classif.rpart")))  # 兜底 = classif.featureless
 rr = resample(train_task, glrn, rsmp("bootstrap", repeats = 5L))
-rr$iters              # 5，全部折完成
-rr$errors             # data.table(iteration, condition)：逐折捕获到的 simpleError
-glrn$log              # data.table(stage, class, condition)
+rr$iters      # 5，全部折完成
+rr$errors     # 逐折捕获到的错误；非空 = 有折用了兜底模型
 ```
 
-`rr$errors` 非空就说明有折用了兜底模型，`rr$aggregate()` 的均值不再是该管道的性能，只能当作诊断线索。
+`rr$errors` 非空时，`rr$aggregate()` 的均值不再是该管道的性能，只能当诊断线索。
 
 ### 分层不是 `rsmp()` 的参数
 
@@ -178,13 +177,13 @@ glrn$log              # data.table(stage, class, condition)
 task$set_col_roles("y", roles = c("target", "stratum"))
 ```
 
-实测同一 seed、同一 5 折下，各折正类占比的离散度从 `sd = 0.1095`（未设角色）降到 `sd = 0.0075`（设角色）。`partition()` 默认已经按目标分层，但手工 `rsmp()` 不会自动分层。
+实测同一 seed、同一 5 折下，各折正类占比的离散度从 `sd = 0.1095`（未设角色）降到 `sd = 0.0075`（设角色）。`partition()` 默认按目标分层，手工 `rsmp()` 不会——这是两条不同的路径，别指望 `rsmp()` 自动分层。
 
 ### `$score()` 与 `$aggregate()` 是两个口径
 
 ```r
-rr$score(msr("classif.ce"))     # 逐折 data.table：task / learner / resampling / iteration / 指标列
-rr$aggregate(msr("classif.ce")) # 标量：各折均值
+rr$score(msr("classif.ce"))     # 每折一行
+rr$aggregate(msr("classif.ce")) # 各折均值（标量）
 ```
 
-`$score()` 的形参是 `measures, ids, conditions, predictions`，**没有** `aggregate` 开关；要"逐折 vs 平均"就是这两个方法的差别。`ResampleResult` 的迭代数访问器是 `$iters`（写成 `$n_resample_iterations` 返回 `NULL`，不报错）。重复 CV 的 `$score()` 只给连续的 `iteration` 列、不给 repeat 编号列，需要按 `ceiling(iteration / folds)` 自己分块。
+要"逐折 vs 平均"就是这两个方法的差别，`$score()` 没有 aggregate 开关。另外重复 CV 的 `$score()` 只给连续的 `iteration` 列、**不给 repeat 编号列**，想按 repeat 汇总得自己分块（迭代号按 repeat 连续排布）。

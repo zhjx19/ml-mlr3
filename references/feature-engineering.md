@@ -103,7 +103,7 @@ selector 本质是 **`function(Task) -> character`**，所以 `po("select", sele
 
 1. **`integer` 不等于 `numeric`**。`data.table` 里 `1:10`、`sample(1:20, n, TRUE)` 这类列在 task 中的类型是 `integer`，`selector_type("numeric")` **选不中它们**——`po("scale")` 会静默跳过整数列。数值预处理要连整数一起作用，写 `selector_type(c("numeric", "integer"))`，或者干脆用默认的 `selector_all()`（`po("scale")` 默认对所有数值列生效，含 integer）。
 2. **`$state$affected_cols` 是 selector 选中的列，不是真正被变换的列**。`po("scale")` 在该 task 上的 `affected_cols` 会把 factor 列也列进去，而实际该列原样透传；判断预处理是否真的生效，要比对 `$train()` 输出 task 的数据，别看这个字段。
-3. **符号类 selector 不由 `mlr3verse` 再导出**。`getNamespaceExports("mlr3verse")` 里只有 `selector_all / cardinality_greater_than / grep / intersect / invert / missing / name / none / setdiff / type / union` 这 11 个；`selector_positive`、`selector_negative`、`selector_non_negative`、`selector_non_positive`、`selector_non_zero`、`selector_non_missing` 六个必须加 `mlr3pipelines::` 前缀。另外**根本没有 `neg()` 这个函数**（`pos()` 有），取反请写 `selector_invert(...)`。
+3. **符号类 selector 不由 `mlr3verse` 再导出**。`selector_positive` / `selector_negative` / `selector_non_negative` / `selector_non_positive` / `selector_non_zero` / `selector_non_missing` 这六个要加 `mlr3pipelines::` 前缀；哪些 selector 在 `mlr3verse` 里，现探 `grep("^selector", getNamespaceExports("mlr3verse"))`。另外**根本没有 `neg()` 这个函数**（`pos()` 有），取反请写 `selector_invert(...)`。
 
 其它 PipeOp 的类型前置（实测）：
 
@@ -161,7 +161,7 @@ out = po_df$predict(list(task_date))[[1L]]
 out$feature_names      # 含 dt.month_sin, dt.month_cos, dt.year, dt.day_of_week ...
 ```
 
-参数（`mlr_pipeops$get("datefeatures")$param_set$ids()` 实测）：`keep_date_var`（是否保留原 Date 列）、`cyclic`、以及逐个开关 `year / quarter / month / week_of_year / day_of_year / day_of_month / day_of_week / hour / minute / second / is_day / is_month_start / is_month_end / is_quarter_start / is_quarter_end / is_year_start / is_year_end / is_leap_year`、`affect_columns`。输出列名规则是 `<原列名>.<特征名>`（含 `cyclic = TRUE` 时 `sin` / `cos` 后缀）。
+有哪些开关现探就行：`mlr_pipeops$get("datefeatures")$param_set$ids()`（`cyclic`、`keep_date_var` 加逐特征开关）。要记住的是**输出列名规则** `<原列名>.<特征名>`，`cyclic = TRUE` 时再带 `_sin` / `_cos` 后缀——后面 `$select()` 和 `affect_columns` 都得按这个拼。
 
 Date / POSIXct 列可以**直接进插补 PipeOp**（实测 `po("imputemedian")`、`po("imputehist")` 对含 NA 的 Date 列 `$train()` 正常出结果），不必先手动转数值。
 
@@ -172,5 +172,5 @@ glrn_dbg = (po("removeconstants") %>>% po("materialize") %>>% lrn("classif.rpart
 view = task$clone(deep = TRUE)$filter(1:30)$materialize_view()   # 冻结成 data.frame 视图
 ```
 
-`po("materialize")` 自身**没有参数**（`$param_set$ids()` 为空），作用是在图中把该点之后的 task 数据落地，便于中途查看/导出。
+`po("materialize")` 无参数，作用是在图中把该点之后的 task 数据落地。
 
