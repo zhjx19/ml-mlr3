@@ -152,7 +152,7 @@ Rscript scripts/verify_examples.R
 === 汇总：20/20 PASS ===
 ```
 
-**CI 门禁 ≠ 免跑凭证——它自己也被量过一次。** 首次上线（commit `c59e384`）就是**双平台全红**，而本机同一天 20/20 PASS。对账出的根因不在示例代码，而在门禁里那份**手抄**的依赖清单：骨架用例 18 有一句 `future::availableCores()`，`future` 只是 mlr3tuning 的 Suggests，装 `mlr3verse` 并不会带它，干净机器上那一例直接 `there is no package called 'future'`。现在清单由 `scripts/list_example_deps.R` 从示例本身算出（字典键的 `$packages` + 正文 `pkg::` + `library()`，剔除 base/recommended），被 `requireNamespace()` 守卫的算可选、缺失只记 SKIP：
+**CI 门禁 ≠ 免跑凭证——它自己也被量过两次。** 首次上线（commit `c59e384`）就是**双平台全红**，而本机同一天 20/20 PASS。第一次对账出的根因不在示例代码，而在门禁里那份**手抄**的依赖清单：骨架用例 18 有一句 `future::availableCores()`，`future` 只是 mlr3tuning 的 Suggests，装 `mlr3verse` 并不会带它，干净机器上那一例直接 `there is no package called 'future'`。于是清单改成由 `scripts/list_example_deps.R` 从示例本身算出——**结果它又红了一次**，因为"算"本身还有两个洞：`lrns(c("classif.rpart", "classif.kknn"))` 里的 kknn 不在 `lrn(` 紧邻位置，按位置扫扫不到；而 `classif.lightgbm` 由 `mlr3extralearners` 注册，该包没装时它的键压根不在字典里，**靠扫字典算清单的脚本永远发现不了自己缺了它**。现在的口径是：字典**提供方包**记成显式锚点账（`mlr3verse` / `mlr3learners` / `mlr3extralearners`，先装、装不上直接红），**后备模型包**按示例是否真实例化来定，被 `requireNamespace()` 守卫的算可选、缺失只记 SKIP；再加一条自检——扫到候选键却解析出 0 个后备包 = 枚举静默失败，直接红：
 
 ```bash
 Rscript scripts/list_example_deps.R              # 报告：示例到底要哪些包、本机缺哪个
@@ -162,7 +162,7 @@ Rscript scripts/list_example_deps.R --install      # CI 用的就是这一条
 
 `.github/workflows/gates.yml` 在每次 push / PR 上自动做三件事：按上面算出的清单装依赖 → **全量**跑 20 例（ubuntu + windows 双平台，不砍案例、不砍折数、不砍预算）→ 给全部文档示例做一次幻觉键体检；另一个 job 跑断言引擎自检。**红灯现在自带病因**：回归与体检两步都把 `[幻觉]` / `FAIL:` 行写成 workflow annotation，不再只留一个状态灯。
 
-但**改动示例代码后仍须本机实跑一遍**（约 5 分钟），并把通过率写进 CHANGELOG——CI 只证明"这两个平台、这个时点的 CRAN 快照"跑得通，而你交付给用户的环境是你自己的机器；两者的实测记录不能互相顶替。
+但**改动示例代码后仍须本机实跑一遍**（整套 20 例含 R 会话启动实测 24s，脚本每例自报秒数），并把通过率写进 CHANGELOG——CI 只证明"这两个平台、这个时点的 CRAN 快照"跑得通，而你交付给用户的环境是你自己的机器；两者的实测记录不能互相顶替。
 
 **评测**（evals.json 的 6 个 prompt 覆盖标准流程/红线拦截/时间序列/不平衡/回归/嵌套重抽样陷阱）：把回答存进 `evals/outputs/eval-<id>.md`，然后：
 
