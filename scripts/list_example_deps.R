@@ -57,14 +57,142 @@ base_repos = local({
 repos_all = c(base_repos, universe_repos)
 installed = \(p) vapply(p, requireNamespace, logical(1), quietly = TRUE)
 
+# ── 安装必须自带病因 ────────────────────────────────────────────────────────────
+# 为什么：2026-09-26 的 ubuntu job 红在 "硬依赖安装失败: kknn"，而真正的编译错误一行都没被
+# 公开通道读到——install.packages 的输出只写 stdout，落在 Actions 日志里，匿名读者只能看到
+# annotations（/logs 要仓库权限，403）。于是"红灯自带病因"这条纪律在门禁自己的安装步骤上失效了。
+# 做法：安装走子进程，输出用 system2(stdout=TRUE, stderr=TRUE) 收成字符向量再落盘；
+# 失败时把日志尾部 + 传递依赖缺口贴成 ::error::。
+# 两条实测坑（2026-09-26 Windows）：① R.home("bin") 在 Windows 上是 bin/x64，那里只有
+# Rscript.exe——不补 .exe 就是 rc=5、日志空；② stdout=/stderr= 指到同一个文件在这条路上
+# 拿不到内容，所以改成捕获式，自己 writeLines。
+# 子进程必须装进**父会话看得见**的库目录，否则装成功而父会话 requireNamespace 仍是 FALSE——
+# 那是假红。库目录不靠环境变量传（system2 的 env= 在 Windows 上把整条命令拼歪了，实测 rc=5），
+# 而是写成一个文件、子进程自己 readLines 后 .libPaths() 覆盖——顺带避开 Windows 路径的转义坑。
+install_logs = character(0)
+install_rc = integer(0)
+rscript_bin = file.path(R.home("bin"),
+  if (.Platform$OS.type == "windows") "Rscript.exe" else "Rscript")
+# 临时目录放产物：直接写在仓库工作目录里，本机跑一次就多出一堆 install_*.log 未跟踪文件
+artifact_dir = tempfile("mlr3-deps-")
+dir.create(artifact_dir, recursive = TRUE, showWarnings = FALSE)
+# deparse 对长向量会折行，返回**字符向量**；直接塞进 sprintf 会让一条语句被拆成两行、
+# 语法当场碎掉（red 模拟实测：repos = c(CRAN=..., mlorg=...) 变成两条不完整语句）。
+# 所以一律压成单行。
+dep1 = function(x) paste(deparse(x), collapse = " ")
+
+install_logged = function(pkgs, tag) {
+  logf = file.path(artifact_dir, sprintf("install_%s.log", tag))
+  exprf = file.path(artifact_dir, sprintf("install_%s.R", tag))
+  libf = file.path(artifact_dir, sprintf("install_%s.lib", tag))
+  writeLines(.libPaths(), libf)
+  fwd = function(f) normalizePath(f, winslash = "/", mustWork = FALSE)
+  writeLines(c(
+    sprintf('libf = "%s"', fwd(libf)),
+    '.libPaths(readLines(libf))',
+    # 子进程到底装进了哪个目录、用的哪套仓库，必须由它自己报出来："装了但父会话看不见"
+    # 是这套诊断最容易自欺的形态，而 install.packages 的那句 Installing package into 就是回执。
+    'writeLines(paste("TARGET_LIB:", .libPaths()[1]))',
+    # 两条都要：getOption("repos") 是 runner 的站点配置（本机默认是占位符 @CRAN@），
+    # 而真正传给 install.packages 的是父会话算出来的那套。只报前者，在 CI 上会读成
+    # "仓库是 @CRAN@"这种压根不存在的东西；只报后者，就看不出 runner 本身配了什么。
+    sprintf('writeLines(paste("REPOS_USED:", getOption("repos"), "| 实际请求:", %s))', dep1(repos_all)),
+    sprintf('install.packages(%s, repos = %s, Ncpus = 4L)', dep1(pkgs), dep1(repos_all)),
+    'quit(status = 0L)'
+  ), exprf)
+  # 生成的子进程脚本必须先能 parse：不检查的话，语法碎掉表现为"包全都装不上"，
+  # 而日志里只留一句 unexpected symbol——病因会被误读成网络或仓库问题。
+  stopifnot(!inherits(try(parse(exprf), silent = TRUE), "try-error"))
+  # 不用 --vanilla：它会连 .Rprofile / .Renviron 一起跳过，而 runner 的 P3M/RSPM 二进制通道
+  # 正是靠站点配置里的仓库与 User-Agent 生效的——跳掉它等于在 ubuntu 上强制退回纯源码编译。
+  # 只关掉 --save/--restore，库目录靠上面那句 .libPaths() 显式覆盖。
+  out = system2(rscript_bin, c("--no-save", "--no-restore", shQuote(fwd(exprf))),
+    stdout = TRUE, stderr = TRUE)
+  writeLines(as.character(out), logf)
+  raw = attr(out, "status")   # system2 只在非零退出时挂 status（实测 Windows 成功时是 NULL）
+  st = if (is.null(raw) || length(raw) == 0L) 0L else as.integer(raw)
+  if (is.na(st)) st = -1L
+  # 一条输出都没有 = 子进程压根没跑起来（今天 Windows 上 rc=5 就是这个形态），
+  # 这时"退出码 0"是假的，标成 -1 让红灯带着这条一起出来。
+  if (st == 0L && !length(out)) st = -1L
+  install_logs <<- c(install_logs, setNames(logf, tag))
+  install_rc <<- c(install_rc, setNames(st, tag))
+  tgt = grep("^TARGET_LIB:", out, value = TRUE)
+  cat(sprintf("  [%s] rc = %s | 日志 %d 行 | %s\n", tag, st, length(out),
+    if (length(tgt)) tgt[1] else "TARGET_LIB 缺失（子进程可能没起来）"))
+  invisible(st)
+}
+
+read_log = function() {
+  if (!length(install_logs)) return(character(0))   # lapply(list()) 返回 list()，unlist 后是 NULL
+  as.character(unlist(lapply(install_logs, function(f)
+    if (file.exists(f)) readLines(f, warn = FALSE) else character(0)), use.names = FALSE))
+}
+
+# 注解里的多行必须用 %0A（工作流命令按行解析，裸换行会把一条诊断劈成 N 条）
+annotate = function(level, title, lines, keep = 30, max = 2600) {
+  lines = as.character(lines)
+  if (length(lines) > keep) lines = lines[(length(lines) - keep + 1L):length(lines)]
+  txt = paste(c(title, lines), collapse = "%0A")
+  if (nchar(txt) > max) txt = paste0("…(截断)", substring(txt, nchar(txt) - max))
+  cat(sprintf("::%s::%s\n", level, txt), sep = "")
+}
+
+# 某个包在日志里出现的最后一段。口径必须两种风味都认（2026-09-26 实测）：
+#   Linux/源码：  "* installing *source* package 'kknn' ..." ... "* DONE (kknn)"
+#   Windows/二进制：没有 "* installing" 行，只有 "package 'kknn' successfully unpacked and MD5 sums checked"
+# 只按第一种写的话，Windows 上的失败日志会被解析成"这个包压根没出现在日志里"——那是假病因。
+around = function(lines, i, n) {
+  if (!length(i)) return(character(0))
+  lines[max(1L, i - n):min(length(lines), i + n)]
+}
+
+pkg_block = function(lines, pkg, n = 12L) {
+  tag = sprintf("package '%s'", pkg)
+  hit = which(vapply(lines, function(l) grepl(tag, l, fixed = TRUE), logical(1)))
+  around(lines, if (length(hit)) max(hit) else integer(0), n)
+}
+
+# 比"按包名捞段"更兜底的一招：直接把报错行连上下文一起端出来，不依赖任何行的格式。
+err_pat = "ERROR:|^ERROR|fatal error|non-zero exit status|had a non-zero|not available for this version|installation of package .* had"
+err_window = function(lines, half = 8L, max_lines = 60L) {
+  hit = grep(err_pat, lines, perl = TRUE)
+  if (!length(hit)) return(character(0))
+  idx = sort(unique(as.integer(unlist(lapply(hit, function(i)
+    max(1L, i - half):min(length(lines), i + half))))))
+  if (length(idx) > max_lines) idx = idx[(length(idx) - max_lines + 1L):length(idx)]
+  sprintf("%4d| %s", idx, lines[idx])   # 带行号：日志本身在 Actions 里，读者要能对上位置
+}
+
+# 装完还缺的包，真正的凶手常常在**传递依赖**里：kknn 只是"没装上"的那个，
+# 而 igraph 才是"编译失败"的那个——它不在 need 里，不额外算就永远不会被点名。
+closure_missing = function(pkgs) {
+  # 依赖口径写在 package_dependencies 的 which 里，不写在 available.packages 的 filters 里
+  # （filters = c("Depends","Imports","LinkingTo") 实测直接报 invalid 'filters' argument，
+  #  而这里外面套了 tryCatch(NULL)——静默返回"什么都不缺"，正是要防的那种假病因）。
+  db = tryCatch(available.packages(repos = repos_all), error = function(e) NULL)
+  if (is.null(db)) {
+    annotate("warning", "取不到仓库索引，传递依赖缺口这一栏无法判定", character(0), keep = 0)
+    return(character(0))
+  }
+  deps = tools::package_dependencies(pkgs, db = db, recursive = TRUE,
+    which = c("Depends", "Imports", "LinkingTo"))
+  cl = unique(unlist(deps, use.names = FALSE))
+  cl = setdiff(cl, c(bundled, "R", pkgs))
+  inst = rownames(installed.packages())
+  sort(setdiff(cl, inst))
+}
+
 if (flag("--install")) {
   a_miss = anchor[!installed(anchor)]
   if (length(a_miss)) {
     cat("=== 先装锚点包（字典提供方）:", paste(a_miss, collapse = ", "), "===\n")
-    install.packages(a_miss, repos = repos_all, Ncpus = 4L)
+    install_logged(a_miss, "anchor")
     a_hard = anchor_hard[!installed(anchor_hard)]
     if (length(a_hard)) {
-      cat(sprintf("::error::硬锚点安装失败，字典无法枚举: %s\n", paste(a_hard, collapse = ", ")))
+      lg = read_log()
+      annotate("error", sprintf("硬锚点安装失败，字典无法枚举: %s | 报错上下文", paste(a_hard, collapse = ", ")),
+        if (length(err_window(lg))) err_window(lg) else lg, keep = 40L)
       quit(status = 1L)
     }
     if (!installed(anchor_soft))
@@ -219,15 +347,62 @@ if (flag("--install")) {
   # （install.packages 对已装包会尝试升级，可能把刚验证过的环境换掉）
   todo = need[!installed(need)]
   cat("\n=== 安装（缺失 ", length(todo), "/", length(need), " 个）===\n")
-  if (length(todo)) install.packages(todo, repos = repos_all, Ncpus = 4L)
+  if (length(todo)) install_logged(todo, "deps")
+
+  # 第二轮只补第一轮没装上的那几个。为什么值得多这一遍：ubuntu 那次红在 kknn，而它 1.4.1
+  # 在 CRAN 自己的 r-patched/r-devel debian-gcc 上全是 OK，165 秒的步骤也不够编译它的依赖
+  # igraph——"确定性装不上"和"这一次没装上"两种病因，公开通道根本分不出来。重试一次就能分：
+  # 补上了 = 瞬时故障（记进 notice，别让下一次红继续猜），仍缺 = 确定性的，日志里必有原文。
+  still0 = need[!installed(need)]
+  still0_hard = setdiff(still0, union(guarded, if (installed(anchor_soft)) character(0) else anchor_soft))
+  if (length(still0_hard)) {
+    cat("\n=== 第二轮（只补缺的 ", length(still0_hard), " 个）===\n", sep = "")
+    install_logged(still0_hard, "retry")
+  }
+
+  # 装没装成之外，还要说清"从哪个通道、以什么形态装的"：ubuntu 上如果 source 段占了绝大多数，
+  # 说明 P3M/RSPM 的二进制没被用上，一次 igraph 级编译就足够把步骤拖爆。
+  # 三种形态分开数（实测口径）：Linux 源码 "* installing *source* package '...'"、
+  # RSPM 二进制 "* installing *binary* package '...'"、Windows 二进制 "package '...' successfully unpacked"。
+  lg = read_log()
+  n_src = sum(startsWith(lg, "* installing *source* package '"))
+  n_bin = sum(startsWith(lg, "* installing *binary* package '"))
+  n_win = sum(vapply(lg, function(l) grepl("successfully unpacked", l, fixed = TRUE), logical(1)))
+  cat(sprintf("::notice::install log lines=%d source=%d binary=%d win_unpacked=%d rc=%s\n",
+    length(lg), n_src, n_bin, n_win, paste(sprintf("%s:%s", names(install_rc), install_rc), collapse = " ")))
+  # 子进程的回执（装进了哪个库、用的哪套仓库）单独成条：它是区分"装到别处去了"和
+  # "真的装不上"的唯一证据，混在形态计数里就没人会去读。
+  tgt = grep("^TARGET_LIB:|^REPOS_USED:", lg, value = TRUE)
+  if (length(tgt)) annotate("notice", "安装子进程回执", tgt, keep = 6L)
 
   still = need[!installed(need)]
   # 装完再认一次软锚点：CI 上它多半是这一步才从 r-universe 落下来的
   still_opt = union(guarded, if (installed(anchor_soft)) character(0) else anchor_soft)
   still_hard = setdiff(still, still_opt)
+  fixed_by_retry = setdiff(still0_hard, still_hard)
+  if (length(fixed_by_retry))
+    annotate("warning", sprintf("重试才装上的包（= 第一轮是瞬时故障，不是装不上）: %s",
+      paste(fixed_by_retry, collapse = ", ")), character(0), keep = 0)
   cat("\n装完复核：仍缺失 =", if (length(still)) paste(still, collapse = ", ") else "无", "\n")
   if (length(still_hard)) {
-    cat(sprintf("::error::硬依赖安装失败: %s\n", paste(still_hard, collapse = ", ")))
+    # 头条必须先给"哪些硬依赖没装上"：下面那些上下文再详细，读者也要第一眼看到结论
+    annotate("error", sprintf("硬依赖安装失败: %s", paste(still_hard, collapse = ", ")),
+      character(0), keep = 0)
+    # 先点名传递依赖：need 里"没装上"的包往往只是受害者，日志里真正报错的是它的依赖
+    cm = closure_missing(still_hard)
+    if (length(cm))
+      annotate("error", sprintf("硬依赖 %s 的传递依赖里还缺: %s（真凶多半在这里）",
+        paste(still_hard, collapse = ", "), paste(cm, collapse = ", ")), character(0), keep = 0)
+    for (p in union(still_hard, cm)) {
+      blk = pkg_block(lg, p)
+      if (length(blk)) { annotate("error", sprintf("[%s] 安装段尾部：", p), blk); next }
+      # 该包没有自己的安装段 = 根本没轮到它（通常是被上面某段的 ERROR 连坐）
+      annotate("warning", sprintf("[%s] 日志里没有它的安装段（未轮到安装）", p), character(0), keep = 0)
+    }
+    ew = err_window(lg)
+    if (length(ew)) annotate("error", "安装日志里的报错行（连上下文）：", ew, keep = 60L)
+    else annotate("warning", "日志里没有匹配到任何报错行：失败形态不是编译错，看下面的 rc/形态计数",
+      character(0), keep = 0)
     quit(status = 1L)
   }
   if (length(still)) cat(sprintf("::warning::可选依赖缺失（用例将记 SKIP）: %s\n", paste(still, collapse = ", ")))
@@ -251,8 +426,9 @@ if (flag("--install")) {
     cat(sprintf("::warning::核心包不是 CRAN release 版本（落到了 universe 的开发版？）: %s\n",
       paste(sprintf("%s=%s", dev, core_v[dev]), collapse = ", ")))
   cat(paste(c(
-    sprintf("::notice::deps need=%d todo=%d still_missing=%s",
-      length(need), length(todo), if (length(still)) paste(still, collapse = ",") else "-"),
+    sprintf("::notice::deps need=%d todo=%d retry=%d still_missing=%s",
+      length(need), length(todo), length(still0_hard),
+      if (length(still)) paste(still, collapse = ",") else "-"),
     sprintf("::notice::R %s | %s", paste(R.version$major, R.version$minor, sep = "."),
       paste(sprintf("%s=%s", key, vers), collapse = " ")),
     sprintf("::notice::libPaths[1] = %s", .libPaths()[1]),

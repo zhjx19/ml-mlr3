@@ -152,18 +152,21 @@ Rscript scripts/verify_examples.R
 === 汇总：20/20 PASS ===
 ```
 
-**CI 门禁 ≠ 免跑凭证——它自己也被量过三次。** 首次上线（commit `c59e384`）就是**双平台全红**，而本机同一天 20/20 PASS。第一次对账出的根因不在示例代码，而在门禁里那份**手抄**的依赖清单：骨架用例 18 有一句 `future::availableCores()`，`future` 只是 mlr3tuning 的 Suggests，装 `mlr3verse` 并不会带它，干净机器上那一例直接 `there is no package called 'future'`。于是清单改成由 `scripts/list_example_deps.R` 从示例本身算出——**结果它又红了一次**，因为"算"本身还有两个洞：`lrns(c("classif.rpart", "classif.kknn"))` 里的 kknn 不在 `lrn(` 紧邻位置，按位置扫扫不到；而 `classif.lightgbm` 由 `mlr3extralearners` 注册，该包没装时它的键压根不在字典里，**靠扫字典算清单的脚本永远发现不了自己缺了它**。现在的口径是：字典**提供方包**记成显式锚点账，且按分发通道分**硬软两级**——硬锚点（`mlr3verse` / `mlr3learners`，CRAN 上就有）装不上 = 这台机器不配跑门禁，直接红；软锚点（`mlr3extralearners`）**不在 CRAN**：本机对 TUNA 的 CRAN 索引逐个查，25158 个包里没有它、包页返回 404，而本机那份的 DESCRIPTION 里 `Repository` 字段是 NA、版本号 `1.7.0.9000`（GitHub 构建的形态），官方通道是 mlr-org 的 r-universe，所以 `--install` 时只把它追加到 `repos` 末位（CRAN/RSPM 供得上的仍旧优先走原通道）。软锚点缺席只影响它注册的那三个键（`classif.lightgbm` / `regr.lightgbm` / `classif.catboost`），于是用例 20 的学习器断言拆成两组：CRAN 基线组无条件断言，extralearners 组用 `requireNamespace()` 守卫、缺失记 SKIP——**把分发通道问题伪装成"文档有幻觉"，是一条比红更糟的红灯**。第三把尺是 `--mirror` 预飞：清单算出来之后，再逐个问一句"CI 那份仓库快照里到底有没有它"，把只能从非 CRAN 通道拿的包点名出来，顺带查它有没有 Windows 预编译二进制（实测 universe 上 `bin/windows/contrib/4.6/` 有 `mlr3extralearners`）。守卫写法也量过：探针显示该包**装了但没加载**时键就已经在字典里（`library(mlr3verse)` 下 `keys()` 加载前后都是 285 个），所以守卫用 `requireNamespace()` 足够，不必 `library()`。再加上枚举自检——扫到候选键却解析出 0 个后备包 = 静默失败，直接红：
+**CI 门禁 ≠ 免跑凭证——它自己已经被量过四次了。** 首次上线（commit `c59e384`）就是**双平台全红**，而本机同一天 20/20 PASS。第一次对账出的根因不在示例代码，而在门禁里那份**手抄**的依赖清单：骨架用例 18 有一句 `future::availableCores()`，`future` 只是 mlr3tuning 的 Suggests，装 `mlr3verse` 并不会带它，干净机器上那一例直接 `there is no package called 'future'`。于是清单改成由 `scripts/list_example_deps.R` 从示例本身算出——**结果它又红了一次**，因为"算"本身还有两个洞：`lrns(c("classif.rpart", "classif.kknn"))` 里的 kknn 不在 `lrn(` 紧邻位置，按位置扫扫不到；而 `classif.lightgbm` 由 `mlr3extralearners` 注册，该包没装时它的键压根不在字典里，**靠扫字典算清单的脚本永远发现不了自己缺了它**。现在的口径是：字典**提供方包**记成显式锚点账，且按分发通道分**硬软两级**——硬锚点（`mlr3verse` / `mlr3learners`，CRAN 上就有）装不上 = 这台机器不配跑门禁，直接红；软锚点（`mlr3extralearners`）**不在 CRAN**：本机对 TUNA 的 CRAN 索引逐个查，25158 个包里没有它、包页返回 404，而本机那份的 DESCRIPTION 里 `Repository` 字段是 NA、版本号 `1.7.0.9000`（GitHub 构建的形态），官方通道是 mlr-org 的 r-universe，所以 `--install` 时只把它追加到 `repos` 末位（CRAN/RSPM 供得上的仍旧优先走原通道）。软锚点缺席只影响它注册的那三个键（`classif.lightgbm` / `regr.lightgbm` / `classif.catboost`），于是用例 20 的学习器断言拆成两组：CRAN 基线组无条件断言，extralearners 组用 `requireNamespace()` 守卫、缺失记 SKIP——**把分发通道问题伪装成"文档有幻觉"，是一条比红更糟的红灯**。第三把尺是 `--mirror` 预飞：清单算出来之后，再逐个问一句"CI 那份仓库快照里到底有没有它"，把只能从非 CRAN 通道拿的包点名出来，顺带查它有没有 Windows 预编译二进制（实测 universe 上 `bin/windows/contrib/4.6/` 有 `mlr3extralearners`）。守卫写法也量过：探针显示该包**装了但没加载**时键就已经在字典里（`library(mlr3verse)` 下 `keys()` 加载前后都是 285 个），所以守卫用 `requireNamespace()` 足够，不必 `library()`。再加上枚举自检——扫到候选键却解析出 0 个后备包 = 静默失败，直接红：
 
 ```bash
 Rscript scripts/list_example_deps.R                       # 报告：示例到底要哪些包、本机缺哪个
 Rscript scripts/list_example_deps.R --print-list          # 只打印待装包名（空格分隔）
 Rscript scripts/list_example_deps.R --install             # CI 用的就是这一条（含锚点账）
 Rscript scripts/list_example_deps.R --mirror --repos <你的 CRAN 镜像>  # 预飞：每个包能不能在 CI 的仓库里装上
+Rscript scripts/test_install_logged.R scripts/list_example_deps.R  # 上面那套安装诊断自己的回归（本机跑，需联网装 1 个小包进临时库）
 ```
 
 本机实测：清单 20 个包（hard 16 / opt 4），`--mirror` 逐条给来源，唯一非 CRAN 来源就是软锚点（它自己还拖一个 universe-only 的传递依赖 `mlr3cmprsk`，CRAN 上 404——所以通道必须同时供两个包）。这里也藏着一个假绿风险：mlr-org 的 universe 里 `mlr3` / `bbotk` / `mlr3misc` 等同名包**也在**，且是 `.9xxx` 开发版；`repos` 把 CRAN/RSPM 摆在前面就是为了不让它们抢走。不信顺序，所以 `--install` 末尾多印一行 `::notice::cran_release core=10 dev=-`——核心包一旦落到开发版就 `::warning::`，因为门禁测的必须是用户装得到那一版。
 
 `.github/workflows/gates.yml` 在每次 push / PR 上自动做三件事：按上面算出的清单装依赖 → **全量**跑 20 例（ubuntu + windows 双平台，不砍案例、不砍折数、不砍预算）→ 给全部文档示例做一次幻觉键体检；另一个 job 跑断言引擎自检。**红灯现在自带病因**：回归与体检两步都把 `[幻觉]` / `FAIL:` 行写成 workflow annotation，不再只留一个状态灯。
+
+**第四次量尺量到了安装步骤自己头上。** 前三次都是"清单算错了"，而 ubuntu job 至今仍红在装依赖那一步——公告只有 `硬依赖安装失败: kknn`，编译错误的原文一行都没出来：`install.packages` 的输出只落在 Actions 日志里，而 `/logs` 要仓库权限（403），匿名读者只有 annotations。现在安装走子进程、输出被收进文件，于是这条步骤自己会说话：日志里三种安装形态分开计数（Linux 源码 / RSPM 二进制 / Windows 已解包，用来判断二进制通道到底有没有被用上）、子进程自报**装进了哪个库、用的哪套仓库**（区分"装到别处去了"和"真的装不上"）、缺失的硬依赖**自动重试一轮**（一轮就装上 = 瞬时故障，两轮都缺 = 确定性失败），失败时把报错行连上下文（带行号）贴成 `::error::`，并按传递依赖点名真凶——`kknn` 往往只是受害者，编译失败的是它的依赖。顺手把"取不到仓库索引"从静默返回空改成明说的 `::warning::`：一个谎称"什么都不缺"的绿灯，比红难查十倍。**病因仍未定位**，这一步只是让下一次 push 的 annotation 里第一次有原文可读；清单本身不会因此放宽——为了让灯变绿而改断言，等于把尺子锯短。
 
 但**改动示例代码后仍须本机实跑一遍**（整套 20 例含 R 会话启动，本机两次实测 22s 与 27s，脚本每例自报秒数），并把通过率写进 CHANGELOG——CI 只证明"这两个平台、这个时点的 CRAN 快照"跑得通，而你交付给用户的环境是你自己的机器；两者的实测记录不能互相顶替。
 
