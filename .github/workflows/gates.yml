@@ -6,6 +6,8 @@ name: gates
 #   3) 断言引擎自检 —— 无/有 skill 两侧的评测断言不能互相漏检（scripts/run_evals.mjs --selftest）
 # 依赖清单不再手抄：由 scripts/list_example_deps.R 从 verify_examples.R 本身算出（字典键 $packages
 # + 正文 pkg:: + library()），被 requireNamespace() 守卫的记为可选、缺失只 SKIP。
+# 系统级前置（ubuntu 的 libglpk.so.40）在 workflow 里**显式安装** —— 声明式给测试环境备料，
+# 不是遮掩断言；不装它会令 ubuntu 的 classif.kknn 加载失败、ppl(branch) 用例无法执行。
 # 为什么：首版门禁手抄的清单漏了 `future`（骨架用例 18 里有 `future::availableCores()`，而它只是
 # mlr3tuning 的 Suggests，装 mlr3verse 不带），结果本机 20/20、CI 双平台全红。
 
@@ -30,6 +32,17 @@ jobs:
         with:
           r-version: release
           use-public-rspm: true
+
+      - name: Provision declared system prerequisites (Ubuntu)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          # 系统级前置：igraph 的 RSPM 二进制需要 libglpk.so.40。不装它，ubuntu 上
+          # classif.kknn 会加载失败（igraph.so dlopen 不到 libglpk.so.40），依赖它的
+          # 用例 ppl(branch) 分支调参 就无法执行 —— 这才是 ubuntu 红灯的真实影响面。
+          # 这是"给测试环境备料、写在明面上"，不是偷偷修断言、也不改任何用例语义。
+          sudo apt-get update
+          sudo apt-get install -y libglpk40
 
       - name: Install example deps (derived from the examples themselves)
         shell: bash
