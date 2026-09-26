@@ -190,12 +190,12 @@ Rscript scripts/check_answer_api.R examples/replay/skilled-eval-1.md examples/re
 
 ## 版本与更新历史
 
-**当前发布版本：v2.3.0**（tag `v2.3.0`）。本仓库自己的版本号与更新历史是产品的一部分，跟着仓库走：
+**当前发布版本：v2.4.0**（CHANGELOG 与 `SKILL.md` frontmatter 同步为 2.4.0；线上最新 tag 仍是 `v2.3.0`，`v2.4.0` 的 tag 等一次明确授权再打）。本仓库自己的版本号与更新历史是产品的一部分，跟着仓库走：
 
 | 在哪看 | 内容 |
 |---|---|
 | [`CHANGELOG.md`](CHANGELOG.md) | 逐版记录，**每版讲清"为什么改"**，不只是改动清单；未发布的改动堆在 `[Unreleased]` 段 |
-| [tags](https://github.com/zhjx19/ml-mlr3/tags) | 打 tag 即发版：`v2.3.0` ← `v2.2.0` ← `v2.1.0`；首屏 `version` 徽章就是最新 tag |
+| [tags](https://github.com/zhjx19/ml-mlr3/tags) | 打 tag 即发版：`v2.3.0` ← `v2.2.0` ← `v2.1.0`；首屏 `version` 徽章读的是最新 tag，所以它此刻仍显示 `v2.3.0` |
 | `SKILL.md` frontmatter 的 `version:` | 给 runtime / 市场读的那一份 |
 
 **三处必须逐字相同，且这件事有机检**：`scripts/verify_examples.R` 开头有一条不计入用例数的自检，比对 SKILL.md frontmatter / README 本节 / CHANGELOG 最新已发布条目，不一致就直接红。为什么值得钉一道尺：这个仓库真有过两份平行的版本元数据（一份 marketplace 声明和 SKILL.md 各说各话），那份已归档移除，但"版本号抄在两个地方就会分家"是结构性风险，不是巧合。
