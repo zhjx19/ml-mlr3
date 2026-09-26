@@ -20,8 +20,6 @@
 
 ![ml-mlr3 gates, real run](assets/evidence-card.svg)
 
-<sub>Rendered from the real gate transcript (`assets/gates-output-2026-09-26.txt`) by `node scripts/render_evidence_card.mjs` — reproducible and diffable.</sub>
-
 [Join the chat on problems](#what-problem-it-solves) · [What it delivers](#what-it-delivers) · [Quick start](#quick-start) · [Triggers](#triggers) · [Safety boundaries](#safety-boundaries) · [Verification & testing](#verification--testing) · [Version & changelog](#version--changelog)
 
 ---
@@ -42,7 +40,7 @@ This skill is not an API manual — it encodes that discipline as hard rules the
 
 **Prerequisites**: R (≥ 4.2 recommended) + `mlr3verse`; the evals scorer needs Node ≥ 18 (optional). Zero API keys, everything runs locally.
 
-Two entry points only: **skills.sh** (one command) and **GitHub** (clone + symlink, works for any agent's skills directory). **Why no Claude Code plugin-marketplace channel**: it would require maintaining a second copy of version metadata parallel to `SKILL.md`, and this repo has already had one "two channels, two version numbers" incident; fewer entry points means fewer promises to keep (see CHANGELOG [2.4.0]).
+Two entry points only: **skills.sh** (one command) and **GitHub** (clone + symlink, works for any agent's skills directory).
 
 Option 1: skills.sh
 
@@ -157,20 +155,16 @@ Most recent real run:
 === summary: 20/20 PASS ===
 ```
 
-**CI gates ≠ a free pass.** CI runs the same three gates as local; the dependency list is not hand-copied — `scripts/list_example_deps.R` derives it from the examples themselves ("scanning the dictionary" misses the dictionary's own provider package — `classif.lightgbm`'s registering package is the live example; details in CHANGELOG):
+**Install dependencies**: the R packages the examples need are derived from the examples themselves, not hand-copied:
 
 ```bash
 Rscript scripts/list_example_deps.R                       # what packages the examples need; what is missing locally
 Rscript scripts/list_example_deps.R --print-list          # print package names only
-Rscript scripts/list_example_deps.R --install             # the exact command CI uses
-Rscript scripts/list_example_deps.R --mirror --repos <your CRAN mirror>   # preflight: does CI's snapshot have it?
+Rscript scripts/list_example_deps.R --install             # install the missing packages
+Rscript scripts/list_example_deps.R --mirror --repos <your CRAN mirror>   # preflight: does your mirror have it?
 ```
 
-`.github/workflows/gates.yml` does three things per push / PR: install dependencies from that list → run all 20 cases (ubuntu + windows; no trimming cases, folds or budget) → run a hallucinated-key audit over every documented example; another job runs the assertion-engine selftest. **A red light carries its own diagnosis**: on failure the `FAIL:` / `[hallucinated]` lines and the per-package load receipts from the install step are emitted as workflow annotations, not just a status light. **Environment & packages**: the gate declares and installs **system-level prerequisites** in the workflow (ubuntu's missing `libglpk.so.40` via `apt-get install libglpk40`) — provisioning the test environment in the open, not papering over an assertion. Beyond system prerequisites the gate only diagnoses: it never loosens assertions or trims the list. Missing `libglpk.so.40` used to make ubuntu's `igraph` binary fail to `dlopen`, so `classif.kknn` failed to load and the case `ppl(branch) branch tuning` could not execute (that was the real impact of the red ubuntu light); with the prerequisite installed, ubuntu is now as green as windows (CI run #11, 2026-09-26: ubuntu / windows / selftest all success). Windows and local are green.
-
-The diagnostic scripts have their own regression: `Rscript scripts/test_install_logged.R scripts/list_example_deps.R` (ten assertion sections, **requires network** — it really installs a small package into a temp library, and can take minutes on a restricted network); `--install-probe <pkg>` reproduces the clean-machine install path in a local temp library and never touches your user library.
-
-**After changing example code you still must run it locally**, and record the pass rate in the CHANGELOG — CI only proves "these two platforms, this point-in-time CRAN snapshot" work; the environment you ship to users is your own machine, and the two records cannot substitute for each other.
+`.github/workflows/gates.yml` runs the same three gates per push / PR: all 20 cases (**ubuntu + windows**; no trimming cases / folds / budget) + a hallucinated-key audit over every documented example + the assertion-engine selftest; on failure the red light carries its own diagnosis (`FAIL:` / `[hallucinated]` lines and install receipts become annotations).
 
 **Evals** (the 6 prompts in evals.json cover the standard flow / red-line interception / time series / imbalance / regression / nested-resampling trap): store answers in `evals/outputs/eval-<id>.md`, then:
 
@@ -179,7 +173,7 @@ node scripts/run_evals.mjs --selftest   # engine selftest (golden 0 FAIL, violat
 node scripts/run_evals.mjs              # score every assertion; any FAIL exits 1
 ```
 
-2026-09-26 two-way replay (developer self-test):
+2026-09-26 two-way replay (local run):
 
 - **A group** (answers following this skill's discipline ×6): all 26 assertions PASS — everything the skill teaches passes the red-line audit.
 - **B group** (typical errors without the skill ×6, in `evals/outputs/negative/`): all 12 FAILs caught — common seeds, hitting the test set during development, out-of-graph SMOTE, random CV on time series, maxing parallelism without checking resources, confusing what nested resampling is for.
@@ -190,11 +184,11 @@ node scripts/run_evals.mjs              # score every assertion; any FAIL exits 
 Rscript scripts/check_answer_api.R examples/replay/skilled-eval-1.md examples/replay/baseline-eval-1.md
 ```
 
-It probes every first argument of `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` in an answer against the mlr3verse dictionaries, names non-existent keys and appends the dictionary's own "Did you mean" hint, and exits 1. Locally: all 4+4 hallucinated keys in the `baseline-*` pair were caught; feeding `SKILL.md` + all `references/` + the 6 A-group answers + `examples/replay/skilled-*` gives **168 unique keys, 0 hallucinated** (this number changes as the prose changes — trust a fresh run). CI runs this same audit on every push — if the code the skill teaches ever rots because upstream renamed something, the gate goes red before a user complains.
+It probes every first argument of `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` in an answer against the mlr3verse dictionaries, names non-existent keys and appends the dictionary's own "Did you mean" hint, and exits 1. Locally: all 4+4 hallucinated keys in the `baseline-*` pair were caught; feeding `SKILL.md` + all `references/` + the 6 A-group answers + `examples/replay/skilled-*` gives **168 unique keys, 0 hallucinated** (this number changes as the prose changes — trust a fresh run).
 
 ## Version & changelog
 
-**Current released version: v2.4.0** (tag `v2.4.0` published; CHANGELOG and the `SKILL.md` frontmatter are synced to 2.4.0). This repo's own version and history are part of the product and travel with it:
+**Current released version: v2.4.0**. Version and per-release changes live in the repo:
 
 | Where | What |
 |---|---|
@@ -202,16 +196,12 @@ It probes every first argument of `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` in
 | [tags](https://github.com/zhjx19/ml-mlr3/tags) | tagging = releasing: `v2.4.0` ← `v2.3.0` ← `v2.2.0` ← `v2.1.0`; the hero `version` badge reads the latest tag (now `v2.4.0`) |
 | `version:` in `SKILL.md` frontmatter | the copy that runtimes / marketplaces read |
 
-**All three must be byte-identical, and a machine checks it**: the top of `scripts/verify_examples.R` has a self-check (not counted as a case) comparing the SKILL.md frontmatter / this README section / the newest **released** CHANGELOG entry, and goes red on any mismatch. Why it is worth a ruler: this repo really did have two parallel version metadata copies (a marketplace declaration disagreeing with SKILL.md); that file is archived and removed, but "a version number copied in two places will drift apart" is a structural risk, not a coincidence.
-
-Release discipline: changes accumulated under `[Unreleased]` are only tagged after explicit user authorization; before tagging, all gates must be green and any example change must have a **local run** record (not just green CI). As for the mlr3 usage the skill teaches, the prose deliberately **does not carry upstream package version numbers or migration notes** — that is mlr3's own NEWS's job; this skill keeps only one live-recorded environment line (see SKILL.md "live API checks") and the discipline of probing on the spot.
-
 ## Acknowledgements
 
 - [tidymodels/skills](https://github.com/tidymodels/skills) — its evals/assertion shape and "discipline first" methodology are this skill's benchmark.
 - [mlr3book](https://mlr3book.mlr-org.com) and [mlr3gallery](https://mlr3gallery.mlr-org.com) — authoritative mlr3verse documentation.
 - [krishi-shah/ml-engineer-skills](https://github.com/krishi-shah/ml-engineer-skills) — the "ML mistake checker" idea.
-- The upstream NEWS of mlr3 / mlr3pipelines / mlr3tuning / mlr3fselect is a source of leads for new usage; the skill prose keeps only currently **verified** usage, with no version accounts.
+- [mlr-org](https://github.com/mlr-org) — the upstream mlr3 / mlr3pipelines / mlr3tuning / mlr3fselect packages.
 
 ## License
 
@@ -219,4 +209,4 @@ Release discipline: changes accumulated under `[Unreleased]` are only tagged aft
 
 ---
 
-*The mlr3 ecosystem moves fast: before copying any example, probe whether the object exists via SKILL.md "live API checks"; the dictionary probes in `scripts/verify_examples.R` fail outright on a key that does not exist.*
+*The mlr3 ecosystem moves fast: before copying any example, probe whether the object exists via SKILL.md "live API checks".*

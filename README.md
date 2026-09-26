@@ -18,9 +18,7 @@
 
 **30 秒看证据**：两个建模 prompt，各写一遍"无 skill 的典型答案"和"按本 skill 的答案"，再用两把尺子量。典型答案一侧：**6 项纪律违规全 FAIL**（常见种子 `set.seed(42)`、开发期就把测试集切出来直评、把随机 CV 当时序重抽样）+ **8 个字典里根本不存在的键**（`po("imputehci")`、`rsmp("cs")`、`tsk("classif", formula=)`、`msr("classif.kappa")` 等，照抄必报错）。按 skill 写的一侧：**9/9 断言 PASS，0 幻觉键**。对照原文、逐条输出与重跑命令见 **[examples/EXAMPLE.md](examples/EXAMPLE.md)**。
 
-![ml-mlr3 门禁实跑](assets/evidence-card.svg)
-
-<sub>上图为门禁真实转录（`assets/gates-output-2026-09-26.txt`）经 `node scripts/render_evidence_card.mjs` 渲染，可重录、可 diff。</sub>
+![ml-mlr3 门禁实跑输出](assets/evidence-card.svg)
 
 [它解决什么问题](#它解决什么问题) · [它会交付什么](#它会交付什么) · [快速开始](#快速开始) · [触发方式](#触发方式) · [安全边界](#安全边界) · [验证与测试](#验证与测试) · [版本与更新历史](#版本与更新历史)
 
@@ -44,7 +42,7 @@
 
 **前置条件**：R（建议 ≥ 4.2）+ `mlr3verse`；跑 evals 评分器需 Node ≥ 18（可选）。零 API key，全部本地运行。
 
-入口只留两条：**skills.sh**（一条命令）与 **GitHub**（clone 后软链，适配任意 Agent 的 skills 目录）。**为什么不开 Claude Code plugin marketplace 通道**：它需要在仓库里额外维护一份与 `SKILL.md` 平行的版本元数据，历史上已出过一次"两个通道版本号各说各话"；入口越少，能兑现的承诺越实（详见 CHANGELOG [2.4.0]）。
+入口只留两条：**skills.sh**（一条命令）与 **GitHub**（clone 后软链，适配任意 Agent 的 skills 目录）。
 
 方式一：skills.sh
 
@@ -159,20 +157,16 @@ Rscript scripts/verify_examples.R
 === 汇总：20/20 PASS ===
 ```
 
-**CI 门禁 ≠ 免跑凭证。** 它跑的三道门禁与本机同源，依赖清单也不手抄——由 `scripts/list_example_deps.R` 从示例本身算出（"扫字典算清单"会漏掉字典提供方自己，`classif.lightgbm` 的注册包就是活例子；细则见 CHANGELOG）：
+**装依赖**：示例要的 R 包由脚本从示例本身算出，不手抄：
 
 ```bash
 Rscript scripts/list_example_deps.R                       # 示例到底要哪些包、本机缺哪个
 Rscript scripts/list_example_deps.R --print-list          # 只打印待装包名（空格分隔）
-Rscript scripts/list_example_deps.R --install             # CI 用的就是这一条
-Rscript scripts/list_example_deps.R --mirror --repos <你的 CRAN 镜像>   # 预飞：CI 那份仓库快照里有没有它
+Rscript scripts/list_example_deps.R --install             # 装上缺的包
+Rscript scripts/list_example_deps.R --mirror --repos <你的 CRAN 镜像>   # 预飞：你的镜像里有没有它
 ```
 
-`.github/workflows/gates.yml` 每次 push / PR 做三件事：按上面的清单装依赖 → **全量**跑 20 例（ubuntu + windows，不砍案例、不砍折数、不砍预算）→ 给全部文档示例做一次幻觉键体检；另一个 job 跑断言引擎自检。**红灯自带病因**：失败时把 `FAIL:` / `[幻觉]` 行、以及安装环节的逐包加载回执写成 workflow annotation，而不是只留一个状态灯。**环境与包安装**：门禁把**系统级前置**在 workflow 里显式声明并安装（ubuntu 缺的 `libglpk.so.40` 由 `apt-get install libglpk40` 补上）——这是给测试环境备料、写在明面上，不是遮掩断言；除系统前置外，门禁只诊断、不放宽断言、不砍清单。此前缺 `libglpk.so.40` 会让 ubuntu 上的 `igraph` 二进制无法 `dlopen`，进而 `classif.kknn` 加载失败、依赖它的用例 `ppl(branch) 分支调参` 无法执行（这才是 ubuntu 红灯的真实影响面）；补系统前置后 ubuntu 已与 windows 同为全绿（CI run #11，2026-09-26：ubuntu / windows / selftest 三 job 均 success）。windows job 与本机全绿。
-
-诊断脚本自己也有回归：`Rscript scripts/test_install_logged.R scripts/list_example_deps.R`（十节断言，**需联网**——会在临时库里真实装一个小包，受限网络下可能耗时数分钟）；`--install-probe <包>` 能在本机临时库里复演干净机器的安装路径，绝不动用户库。
-
-**改完示例代码仍须本机实跑一遍**，并把通过率写进 CHANGELOG——CI 只证明"这两个平台、这个时点的 CRAN 快照"跑得通，你交付给用户的环境是你自己的机器，两份实测记录不能互相顶替。
+`.github/workflows/gates.yml` 每次 push / PR 跑同样三道门禁：**全量** 20 例（ubuntu + windows，不砍案例 / 折数 / 预算）+ 全库幻觉键体检 + 断言引擎自检；失败时红灯自带病因（`FAIL:` / `[幻觉]` 行与安装回执写成 annotation）。
 
 **评测**（evals.json 的 6 个 prompt 覆盖标准流程/红线拦截/时间序列/不平衡/回归/嵌套重抽样陷阱）：把回答存进 `evals/outputs/eval-<id>.md`，然后：
 
@@ -181,7 +175,7 @@ node scripts/run_evals.mjs --selftest   # 引擎自检（黄金 0 FAIL、违规 
 node scripts/run_evals.mjs              # 逐断言评分，任一 FAIL 退出码 1
 ```
 
-2026-09-26 双向回放结果（开发者自测）：
+2026-09-26 双向回放结果（本机实测）：
 
 - **A 组**（按本 skill 纪律作答 ×6）：26 断言全 PASS——skill 教的写法全部通过红线审计
 - **B 组**（模拟无 skill 的典型错误 ×6，见 `evals/outputs/negative/`）：12 FAIL 全部抓获——常见种子、测试集直评、图外 SMOTE、时序随机 CV、没量资源就开满并行、嵌套重抽样概念混淆一个都跑不掉
@@ -192,11 +186,11 @@ node scripts/run_evals.mjs              # 逐断言评分，任一 FAIL 退出�
 Rscript scripts/check_answer_api.R examples/replay/skilled-eval-1.md examples/replay/baseline-eval-1.md
 ```
 
-它把回答里所有 `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` 的首参逐个对着 mlr3verse 字典探测，键不存在就点名并附字典自己的 "Did you mean" 提示，退出码 1。本机实测：`baseline-*` 两份 4+4 个幻觉键全部被抓；把 `SKILL.md` + 全部 `references/` + A 组 6 份 + `examples/replay/skilled-*` 一起喂进去，**168 个唯一键 0 幻觉**（这个数随正文增删而变，以现跑为准）。CI 每次 push 都做这同一次体检——skill 教的代码哪天因为上游改名而失效，门禁会先红，而不是等用户投诉。
+它把回答里所有 `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` 的首参逐个对着 mlr3verse 字典探测，键不存在就点名并附字典自己的 "Did you mean" 提示，退出码 1。本机实测：`baseline-*` 两份 4+4 个幻觉键全部被抓；把 `SKILL.md` + 全部 `references/` + A 组 6 份 + `examples/replay/skilled-*` 一起喂进去，**168 个唯一键 0 幻觉**（这个数随正文增删而变，以现跑为准）。
 
 ## 版本与更新历史
 
-**当前发布版本：v2.4.0**（已打 tag `v2.4.0`；CHANGELOG 与 `SKILL.md` frontmatter 同步为 2.4.0）。本仓库自己的版本号与更新历史是产品的一部分，跟着仓库走：
+**当前发布版本：v2.4.0**。版本号与逐版改动都在仓库里：
 
 | 在哪看 | 内容 |
 |---|---|
@@ -204,16 +198,12 @@ Rscript scripts/check_answer_api.R examples/replay/skilled-eval-1.md examples/re
 | [tags](https://github.com/zhjx19/ml-mlr3/tags) | 打 tag 即发版：`v2.4.0` ← `v2.3.0` ← `v2.2.0` ← `v2.1.0`；首屏 `version` 徽章读最新 tag（现为 `v2.4.0`） |
 | `SKILL.md` frontmatter 的 `version:` | 给 runtime / 市场读的那一份 |
 
-**三处必须逐字相同，且这件事有机检**：`scripts/verify_examples.R` 开头有一条不计入用例数的自检，比对 SKILL.md frontmatter / README 本节 / CHANGELOG 最新已发布条目，不一致就直接红。为什么值得钉一道尺：这个仓库真有过两份平行的版本元数据（一份 marketplace 声明和 SKILL.md 各说各话），那份已归档移除，但"版本号抄在两个地方就会分家"是结构性风险，不是巧合。
-
-发版纪律：`[Unreleased]` 攒到的改动要经用户明确授权才打 tag；打 tag 前四道门禁须全绿，且示例代码改动必须有**本机实跑**记录（不只是 CI 绿）。至于 skill 教的 mlr3 用法本身，正文刻意**不写上游包的版本号与迁移账目**——那是 mlr3 自己 NEWS 的职责，本 skill 只保留一行实测环境记录（见 SKILL.md「API 现场校验」）与当场探测的纪律。
-
 ## 致谢
 
 - [tidymodels/skills](https://github.com/tidymodels/skills) —— 官方 skill 的 evals/断言形态与「纪律优先」方法论是本 skill 的对标来源
 - [mlr3book](https://mlr3book.mlr-org.com) 与 [mlr3gallery](https://mlr3gallery.mlr-org.com) —— mlr3verse 生态权威文档
 - [krishi-shah/ml-engineer-skills](https://github.com/krishi-shah/ml-engineer-skills) —— 「ML 错误检查器」思路的启发
-- 上游 mlr3 / mlr3pipelines / mlr3tuning / mlr3fselect 各包 NEWS 是新用法的线索来源；技能正文只保留**实测通过**的当前写法，不留版本号账目
+- [mlr-org](https://github.com/mlr-org) —— mlr3 / mlr3pipelines / mlr3tuning / mlr3fselect 等上游包
 
 ## License
 
@@ -221,4 +211,4 @@ Rscript scripts/check_answer_api.R examples/replay/skilled-eval-1.md examples/re
 
 ---
 
-*mlr3 生态迭代快，照抄示例前先按 SKILL.md「API 现场校验」节探测对象是否存在；`scripts/verify_examples.R` 里的字典探针会把不存在的键直接判 FAIL。*
+*mlr3 生态迭代快：照抄示例前先按 SKILL.md「API 现场校验」探测对象是否存在。*
