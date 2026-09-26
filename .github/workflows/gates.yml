@@ -46,12 +46,15 @@ jobs:
           set +o pipefail
           if Rscript scripts/verify_examples.R > _verify.log 2>&1; then rc=0; else rc=$?; fi
           cat _verify.log
-          grep -F "FAIL: " _verify.log | head -10 | sed 's/^/::error::/'
-          grep -F "[SKIP]" _verify.log | head -10 | sed 's/^/::warning::/'
+          # 健康卡：汇总行 + 耗时行写成 notice，绿灯时也能从公开通道看到"这 20 例真的跑了多少秒"，
+          # 不用下载日志（annotation 是 /logs 403 之后唯一对公众开放的通道）。
+          grep -E "^=== 汇总|^--- 耗时" _verify.log | head -2 | sed 's/^/::notice::/'
+          grep -F "FAIL: " _verify.log | head -4 | sed 's/^/::error::/'
+          grep -F "[SKIP]" _verify.log | head -3 | sed 's/^/::warning::/'
           if [ "$rc" != "0" ] && ! grep -qF "汇总：" _verify.log; then
             # 没跑到汇总行 = R 会话中途死掉（依赖缺失 / 会话崩溃），日志尾部就是病因
             echo "::error::R 会话未跑到汇总行（rc=$rc），以下为日志尾部"
-            tail -12 _verify.log | sed 's/^/::error::/'
+            tail -8 _verify.log | sed 's/^/::error::/'
           fi
           exit $rc
 

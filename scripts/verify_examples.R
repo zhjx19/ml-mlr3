@@ -19,8 +19,11 @@ suppressPackageStartupMessages({
 skip = \(why) stop(structure(list(message = why, call = NULL),
   class = c("skipCondition", "error", "condition")))
 envir_ref = new.env(parent = emptyenv())   # run_case 内部传递 SKIP 原因
+envir_times = new.env(parent = emptyenv()) # 用例名 -> 实跑秒数
+wall_t0 = proc.time()[["elapsed"]]
 
 run_case = \(name, code, no_warn = FALSE) {
+  t0 = proc.time()[["elapsed"]]
   status = tryCatch(
     {
       if (no_warn) {
@@ -38,9 +41,11 @@ run_case = \(name, code, no_warn = FALSE) {
       } else paste("FAIL:", conditionMessage(e))
     }
   )
+  secs = proc.time()[["elapsed"]] - t0
+  assign(name, secs, envir = envir_times)          # 计时账，汇总时点名"快到可疑"的用例
   extra = if (identical(status, "SKIP") && !is.null(envir_ref$last_skip)) paste0(" — ", envir_ref$last_skip) else ""
   if (identical(status, "SKIP")) envir_ref$last_skip = NULL
-  cat(sprintf("[%s] %s%s\n", status, name, extra))
+  cat(sprintf("[%s] %s%s (%.1fs)\n", status, name, extra, secs))
   setNames(status, name)
 }
 
@@ -623,6 +628,19 @@ skips = names(results)[results == "SKIP"]
 cat(sprintf("\n=== 汇总：%d/%d PASS", sum(results == "PASS"), length(results)))
 if (length(skips) > 0) cat(sprintf("，%d SKIP（%s）", length(skips), paste(skips, collapse = "、")))
 cat(" ===\n")
+
+# 计时账：为什么要有——CI 曾经「20 例只跑了 25 秒、退出码 1」，而日志里没有任何时长线索，
+# 于是分不清"重用例快速报错"和"真的跑完了"。PASS/FAIL 只说结论，秒数说它有没有真干活。
+times = unlist(as.list(envir_times))
+ord = order(-times)
+cat(sprintf("--- 耗时：合计 %.0fs / 会话墙钟 %.0fs | 最慢 5 例：%s\n", sum(times),
+  proc.time()[["elapsed"]] - wall_t0,
+  paste0(sprintf("%s=%.1fs", names(times)[ord][1:min(5L, length(times))],
+    times[ord][1:min(5L, length(times))]), collapse = ", ")))
+fast = times[times < 0.05]
+if (length(fast)) cat(sprintf("--- 快到可疑（<0.05s，多半是当场报错或纯探针）：%s\n",
+  paste(names(fast), collapse = "、")))
+
 if (length(fails) > 0) {
   for (f in fails) cat("FAIL:", f, "->", results[[f]], "\n")
   quit(status = 1)
