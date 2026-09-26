@@ -237,17 +237,31 @@ if (flag("--install")) {
   key = intersect(c("mlr3", "mlr3verse", "mlr3learners", "mlr3extralearners", "mlr3pipelines",
     "mlr3tuning", "mlr3mbo", "bbotk", "ranger", "xgboost", "kknn", "e1071", "future", "ps"), need)
   vers = vapply(key, \(p) tryCatch(as.character(packageVersion(p)), error = \(e) "MISSING"), character(1))
+  # 通道纯度自检：mlr-org 的 universe 里 bbotk / mlr3 / mlr3misc / mlr3tuning 等也在（而且是 .9xxx
+  # 开发版）。repos 把 CRAN/RSPM 摆在前面就是为了不让它们抢走同名包——"应该抢不走"和"实测没抢走"
+  # 是两件事：门禁要是测了开发版，报出来的通过率就属于另一套代码，而 annotation 看起来仍旧全绿。
+  # 名单不与 need 求交：paradox / mlr3misc 这类是传递依赖，不在清单里但同样会被 universe 抢走。
+  core = c("mlr3", "mlr3verse", "mlr3learners", "mlr3pipelines", "mlr3tuning", "mlr3fselect",
+    "mlr3mbo", "bbotk", "paradox", "mlr3misc")
+  core_v = vapply(core, \(p) tryCatch(as.character(packageVersion(p)), error = \(e) "MISSING"), character(1))
+  # 开发版形态按 x.y.z.9xxx 判（GitHub/universe 构建的惯例），不能简单看 "\.9"——
+  # mlr3misc 0.9.12 这种正规 CRAN 版本号里也带 ".9"，那样判会天天假告警。
+  dev = core[grepl("^\\d+\\.\\d+\\.\\d+\\.9", core_v)]
+  if (length(dev))
+    cat(sprintf("::warning::核心包不是 CRAN release 版本（落到了 universe 的开发版？）: %s\n",
+      paste(sprintf("%s=%s", dev, core_v[dev]), collapse = ", ")))
   cat(paste(c(
     sprintf("::notice::deps need=%d todo=%d still_missing=%s",
       length(need), length(todo), if (length(still)) paste(still, collapse = ",") else "-"),
     sprintf("::notice::R %s | %s", paste(R.version$major, R.version$minor, sep = "."),
       paste(sprintf("%s=%s", key, vers), collapse = " ")),
     sprintf("::notice::libPaths[1] = %s", .libPaths()[1]),
-    # 软锚点的来源必须留痕：CI 上 mlr3extralearners 只可能从 r-universe 落下来，
-    # 没有这条，"它装了"和"它从哪装的"就又被当成同一件事。
     sprintf("::notice::repos = %s | soft_anchor %s = %s",
       paste(sprintf("%s=%s", names(repos_all), repos_all), collapse = " "), anchor_soft,
-      if (installed(anchor_soft)) as.character(packageVersion(anchor_soft)) else "MISSING(相关键 SKIP)")
+      if (installed(anchor_soft)) as.character(packageVersion(anchor_soft)) else "MISSING(相关键 SKIP)"),
+    # 留一行可 grep 的通道纯度账：CRAN 9 = 门禁测的就是 CRAN 那一版
+    sprintf("::notice::cran_release core=%d dev=%s", length(core),
+      if (length(dev)) paste(dev, collapse = ",") else "-")
   ), collapse = "\n"), "\n")
 
   summary = Sys.getenv("GITHUB_STEP_SUMMARY")

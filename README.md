@@ -161,7 +161,7 @@ Rscript scripts/list_example_deps.R --install             # CI 用的就是这�
 Rscript scripts/list_example_deps.R --mirror --repos <你的 CRAN 镜像>  # 预飞：每个包能不能在 CI 的仓库里装上
 ```
 
-本机实测：清单 20 个包（hard 16 / opt 4），`--mirror` 逐条给来源，唯一非 CRAN 来源就是软锚点。
+本机实测：清单 20 个包（hard 16 / opt 4），`--mirror` 逐条给来源，唯一非 CRAN 来源就是软锚点（它自己还拖一个 universe-only 的传递依赖 `mlr3cmprsk`，CRAN 上 404——所以通道必须同时供两个包）。这里也藏着一个假绿风险：mlr-org 的 universe 里 `mlr3` / `bbotk` / `mlr3misc` 等同名包**也在**，且是 `.9xxx` 开发版；`repos` 把 CRAN/RSPM 摆在前面就是为了不让它们抢走。不信顺序，所以 `--install` 末尾多印一行 `::notice::cran_release core=10 dev=-`——核心包一旦落到开发版就 `::warning::`，因为门禁测的必须是用户装得到那一版。
 
 `.github/workflows/gates.yml` 在每次 push / PR 上自动做三件事：按上面算出的清单装依赖 → **全量**跑 20 例（ubuntu + windows 双平台，不砍案例、不砍折数、不砍预算）→ 给全部文档示例做一次幻觉键体检；另一个 job 跑断言引擎自检。**红灯现在自带病因**：回归与体检两步都把 `[幻觉]` / `FAIL:` 行写成 workflow annotation，不再只留一个状态灯。
 
