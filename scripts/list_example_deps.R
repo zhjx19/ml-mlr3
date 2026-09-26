@@ -34,20 +34,38 @@ src_files = src_files[file.exists(src_files)]
 if (!length(src_files)) stop("没有可扫描的源文件：检查 --src 参数")
 
 # ── 锚点账：字典的提供方包，不靠扫描发现（扫描依赖它们先在场）────────────────────
-anchor = c("mlr3verse", "mlr3learners", "mlr3extralearners")
+# 锚点分两级，依据是 2026-09-26 的预飞实测（对着 TUNA 的 CRAN 索引逐个查）：
+#   硬锚点 = mlr3verse / mlr3learners，CRAN 上就有；装不上 = 这台机器根本没法跑门禁 → 直接红。
+#   软锚点 = mlr3extralearners，**不在 CRAN**：CRAN 索引 25158 个包里没有它、包页返回 404，
+#     本机那份 DESCRIPTION 的 Repository 字段是 NA、版本号 1.7.0.9000（GitHub 构建的形态）。
+#     官方分发通道是 mlr-org 的 r-universe（源索引里有 mlr3extralearners 1.7.0，且带
+#     Windows 4.6 二进制）。它缺席只影响它注册的那几个键（classif.lightgbm / regr.lightgbm /
+#     classif.catboost），所以装不上 = 相关键记 SKIP，而不是把整个门禁钉红——
+#     把"分发通道问题"伪装成"文档有幻觉"，是比红更糟的红灯。
+anchor_hard = c("mlr3verse", "mlr3learners")
+anchor_soft = "mlr3extralearners"
+anchor = c(anchor_hard, anchor_soft)
+# 只追加到 repos 末位：CRAN / RSPM 供得上的包照旧走原通道，只有它们没有的才落到 universe。
+extra_repos = c(mlorg = "https://mlr-org.r-universe.dev")
+installed = \(p) vapply(p, requireNamespace, logical(1), quietly = TRUE)
+
 if (flag("--install")) {
-  a_miss = anchor[!vapply(anchor, requireNamespace, logical(1), quietly = TRUE)]
+  a_miss = anchor[!installed(anchor)]
   if (length(a_miss)) {
     cat("=== 先装锚点包（字典提供方）:", paste(a_miss, collapse = ", "), "===\n")
-    install.packages(a_miss, Ncpus = 4L)
-    a_still = anchor[!vapply(anchor, requireNamespace, logical(1), quietly = TRUE)]
-    if (length(a_still)) {
-      cat(sprintf("::error::锚点包安装失败，字典无法枚举: %s\n", paste(a_still, collapse = ", ")))
+    install.packages(a_miss, repos = c(getOption("repos"), extra_repos), Ncpus = 4L)
+    a_hard = anchor_hard[!installed(anchor_hard)]
+    if (length(a_hard)) {
+      cat(sprintf("::error::硬锚点安装失败，字典无法枚举: %s\n", paste(a_hard, collapse = ", ")))
       quit(status = 1L)
     }
+    if (!installed(anchor_soft))
+      cat(sprintf("::warning::软锚点 %s 未就位（CRAN 无此包，需 r-universe）：它注册的键记 SKIP\n", anchor_soft))
   }
 }
-need_ml = requireNamespace("mlr3verse", quietly = TRUE)
+# 扫描还没开始前就把"这台机器认领不认领软锚点"记下来，后面算 hard/opt 时要用。
+anchor_opt = if (installed(anchor_soft)) character(0) else anchor_soft
+need_ml = installed("mlr3verse")
 
 src = unlist(lapply(src_files, \(f) readLines(f, warn = FALSE)))
 
@@ -113,10 +131,11 @@ guarded = unique(unlist(regmatches(src,
 need = sort(unique(c(anchor, dict_pkgs, colon_pkgs, lib_pkgs)))
 need = setdiff(need, bundled)
 need = need[nzchar(need)]
-hard = setdiff(need, guarded)
-opt = intersect(need, guarded)
-missing = need[!vapply(need, requireNamespace, logical(1), quietly = TRUE)]
-missing_hard = setdiff(missing, guarded)
+# 可选 = 源码里被 requireNamespace 守卫的 + 本机未就位的软锚点（它对应的键用例会自己 SKIP）
+opt = union(intersect(need, guarded), anchor_opt)
+hard = setdiff(need, opt)
+missing = need[!installed(need)]
+missing_hard = setdiff(missing, opt)
 
 if (flag("--print-list")) {
   cat(paste(need, collapse = " "), "\n")
@@ -124,7 +143,9 @@ if (flag("--print-list")) {
 }
 
 cat("=== 扫描对象 ===\n"); cat(paste(" ", src_files), sep = "\n")
-cat(sprintf("\n=== 锚点包（字典提供方，无条件先装）===\n  %s\n", paste(anchor, collapse = "  ")))
+cat(sprintf("\n=== 锚点包（字典提供方，无条件先装）===\n  硬（CRAN 可得）: %s\n  软（CRAN 无，走 %s）: %s%s\n",
+  paste(anchor_hard, collapse = "  "), extra_repos[1], anchor_soft,
+  if (length(anchor_opt)) "  ← 本机未就位，相关键记 SKIP" else ""))
 cat("\n=== 构造函数行上的键 -> 后备包 ===\n")
 for (dn in names(dict_detail)) {
   det = dict_detail[[dn]]
@@ -141,15 +162,61 @@ cat(paste(need, collapse = " "), "\n")
 cat(sprintf("\nhard = %d | opt = %d | 本机缺失 = %s\n", length(hard), length(opt),
   if (length(missing)) paste(missing, collapse = ", ") else "无"))
 
+# ── 预飞：清单算出来了，还得问一句"CI 那份仓库快照里到底有没有它" ──────────────────
+# 为什么要这一条：软锚点那场事故（mlr3extralearners 不在 CRAN）在本机永远看不出来——
+# 本机那份是当初从 GitHub 装的，DESCRIPTION 里 Repository 字段直接是 NA。
+# 用法：--mirror [--repos <CRAN 镜像 URL>]（本机默认 @CRAN@ 会去撞 cloud.r-project.org，
+# 国内建议显式给镜像；CI 上不给也一样，runner 就贴在 CRAN / RSPM 旁边）。
+if (flag("--mirror")) {
+  base_repos = val("--repos", "https://cloud.r-project.org")
+  idx = \(u) tryCatch(rownames(available.packages(repos = u, type = "source")), error = \(e) NULL)
+  cat("\n=== 镜像可得性预飞 ===\n")
+  av_base = idx(base_repos)
+  av_uni = idx(extra_repos[[1]])
+  if (is.null(av_base) && is.null(av_uni)) {
+    cat(sprintf("::warning::两个仓库索引都取不到（%s / %s），本轮不判可得性\n", base_repos, extra_repos[[1]]))
+    quit(status = 0L)
+  }
+  cat(sprintf("  索引规模：主仓库 %s | mlorg r-universe %s\n",
+    if (is.null(av_base)) "取不到" else length(av_base),
+    if (is.null(av_uni)) "取不到" else length(av_uni)))
+  nowhere = need[!(need %in% av_base) & !(need %in% av_uni)]
+  for (p in need) {
+    from = if (p %in% av_base) base_repos else if (p %in% av_uni) extra_repos[[1]] else "两边都没有"
+    cat(sprintf("  %-22s <- %s\n", p, from))
+  }
+  only_uni = need[!(need %in% av_base) & (need %in% av_uni)]
+  cat(sprintf("\n  只存在于非 CRAN 通道的包：%s\n", if (length(only_uni)) paste(only_uni, collapse = ", ") else "无"))
+  # Windows job 那边要看有没有预编译二进制：没有编译链的 runner 上，source-only 会当场失败
+  if (length(only_uni)) {
+    # R 的 Windows 二进制目录按 "主.次" 分（4.6.1 → 4.6），R.version$minor 是 "6.1"，只取第一段。
+    # 这个仓库的二进制索引直接放在 contrib 层（没有 src/contrib 子目录），所以读文件而不是 available.packages。
+    win_url = sprintf("%s/bin/windows/contrib/%s.%s/PACKAGES", extra_repos[[1]], R.version$major,
+      sub("\\..*$", "", R.version$minor))
+    win_txt = tryCatch(readLines(win_url, warn = FALSE), error = \(e) character(0))
+    win_pkgs = sub("^Package: ", "", grep("^Package: ", win_txt, value = TRUE))
+    cat(sprintf("  Windows 二进制索引（%s，读到 %d 个）：%s\n", win_url, length(win_pkgs),
+      paste(sprintf("%s=%s", only_uni, ifelse(only_uni %in% win_pkgs, "有", "无（要当场编译）")), collapse = " ")))
+  }
+  if (length(nowhere)) {
+    cat(sprintf("\n::error::以下包在两个仓库里都查不到，门禁不可能装上它: %s\n", paste(nowhere, collapse = ", ")))
+    quit(status = 1L)
+  }
+  cat("\n[PASS] 清单里的每个包都有明确来源\n")
+  quit(status = 0L)
+}
+
 if (flag("--install")) {
   # 只补缺失的：CI 干净机器上 need 基本全缺，等于全装；本机则不会去动一套已经跑通的库
   # （install.packages 对已装包会尝试升级，可能把刚验证过的环境换掉）
-  todo = need[!vapply(need, requireNamespace, logical(1), quietly = TRUE)]
+  todo = need[!installed(need)]
   cat("\n=== 安装（缺失 ", length(todo), "/", length(need), " 个）===\n")
-  if (length(todo)) install.packages(todo, Ncpus = 4L)
+  if (length(todo)) install.packages(todo, repos = c(getOption("repos"), extra_repos), Ncpus = 4L)
 
-  still = need[!vapply(need, requireNamespace, logical(1), quietly = TRUE)]
-  still_hard = setdiff(still, guarded)
+  still = need[!installed(need)]
+  # 装完再认一次软锚点：CI 上它多半是这一步才从 r-universe 落下来的
+  still_opt = union(guarded, if (installed(anchor_soft)) character(0) else anchor_soft)
+  still_hard = setdiff(still, still_opt)
   cat("\n装完复核：仍缺失 =", if (length(still)) paste(still, collapse = ", ") else "无", "\n")
   if (length(still_hard)) {
     cat(sprintf("::error::硬依赖安装失败: %s\n", paste(still_hard, collapse = ", ")))
@@ -167,7 +234,12 @@ if (flag("--install")) {
       length(need), length(todo), if (length(still)) paste(still, collapse = ",") else "-"),
     sprintf("::notice::R %s | %s", paste(R.version$major, R.version$minor, sep = "."),
       paste(sprintf("%s=%s", key, vers), collapse = " ")),
-    sprintf("::notice::libPaths[1] = %s", .libPaths()[1])
+    sprintf("::notice::libPaths[1] = %s", .libPaths()[1]),
+    # 软锚点的来源必须留痕：CI 上 mlr3extralearners 只可能从 r-universe 落下来，
+    # 没有这条，"它装了"和"它从哪装的"就又被当成同一件事。
+    sprintf("::notice::repos = %s | soft_anchor %s = %s",
+      paste(names(getOption("repos")), collapse = "+"), anchor_soft,
+      if (installed(anchor_soft)) as.character(packageVersion(anchor_soft)) else "MISSING(相关键 SKIP)")
   ), collapse = "\n"), "\n")
 
   summary = Sys.getenv("GITHUB_STEP_SUMMARY")

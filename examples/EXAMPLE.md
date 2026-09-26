@@ -82,7 +82,7 @@ baseline 那 3 个 FAIL 只说明它不守规矩，看不出它**根本跑不通
 === 汇总：168 个唯一字典键 | 幻觉 0 | 存在 168 ===
 ```
 
-`Rscript scripts/verify_examples.R` 全量实跑 20 个案例（含分类/回归骨架、`auto_tuner` 条件参数、分支调参、时序滚动折、嵌套 benchmark、早停、字典探针、重抽样实测坑、文档口径对账），整套含 R 会话启动实测 24s（脚本每例自报秒数，最慢的是 `benchmark 调优后比较` 4.3s）。
+`Rscript scripts/verify_examples.R` 全量实跑 20 个案例（含分类/回归骨架、`auto_tuner` 条件参数、分支调参、时序滚动折、嵌套 benchmark、早停、字典探针、重抽样实测坑、文档口径对账），整套含 R 会话启动，本机两次实测 22s 与 27s（脚本每例自报秒数，最慢的是 `benchmark 调优后比较` 6.1s）。
 
 `Rscript scripts/check_answer_api.R SKILL.md "references/*.md" "references/feature-engineering/*.md" "evals/outputs/eval-*.md" "examples/replay/skilled-*.md"` 把 skill 自己教的每一段代码过一遍字典，168 个唯一键全部存在。两条都在 CI（`.github/workflows/gates.yml`，ubuntu + windows 双平台）里跑，不砍案例、不砍折数、不砍预算。
 

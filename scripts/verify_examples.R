@@ -354,16 +354,27 @@ results = c(
     expect_fs = c("sequential", "random_search", "exhaustive_search", "genetic_search",
       "rfe", "rfecv", "shadow_variable_search")
     stopifnot(length(setdiff(expect_fs, mlr_fselectors$keys())) == 0L)
+    # 学习器键分两组。分组的依据是实测的分发通道差异，不是想放宽什么：
+    # mlr3verse / mlr3learners 在 CRAN 上，装完就该有下面这批键；而 mlr3extralearners **不在 CRAN**
+    # （官方通道是 mlr-org 的 r-universe），干净机器上没装它时 classif.lightgbm 一类键压根不在字典里。
+    # 混在一条无条件断言里，红的是"这台机器装了哪些包"，而不是"文档有没有幻觉"——病因就错了。
     expect_lrn = c("classif.glmnet", "classif.ranger", "classif.xgboost", "classif.svm",
-      "classif.kknn", "classif.rpart", "classif.featureless", "classif.lightgbm",
-      "classif.catboost", "classif.nnet", "regr.lightgbm", "regr.ranger")
-    stopifnot(length(setdiff(expect_lrn, mlr_learners$keys())) == 0L)
+      "classif.kknn", "classif.rpart", "classif.featureless", "classif.nnet", "regr.ranger")
+    miss_lrn = setdiff(expect_lrn, mlr_learners$keys())
+    if (length(miss_lrn)) stop(sprintf("CRAN 版 mlr3verse 字典缺键: %s", paste(miss_lrn, collapse = ", ")))
     expect_task = c("diabetes", "german_credit", "mtcars", "iris", "penguins", "titanic",
       "breast_cancer", "sonar")
     stopifnot(length(setdiff(expect_task, mlr_tasks$keys())) == 0L)
     # 已移除的旧用法不得复活：独立函数 greplicate()、任务 pima
     stopifnot(!exists("greplicate"))
     stopifnot(!("pima" %in% mlr_tasks$keys()))
+    # 软锚点组放在最后：SKIP 会中断本例，前面的 CRAN 基线断言必须已经跑完。
+    # 探针实测（2026-09-26）：mlr3extralearners "已安装但未加载"时键就已经在字典里
+    # （library(mlr3verse) 下 keys() 已含 classif.lightgbm，加载前后都是 285 个），故守卫用 requireNamespace。
+    if (!requireNamespace("mlr3extralearners", quietly = TRUE))
+      skip("mlr3extralearners 未安装（不在 CRAN，需 mlr-org r-universe），lightgbm / catboost 键待核验")
+    miss_extra = setdiff(c("classif.lightgbm", "regr.lightgbm", "classif.catboost"), mlr_learners$keys())
+    if (length(miss_extra)) stop(sprintf("mlr3extralearners 已装却缺键: %s", paste(miss_extra, collapse = ", ")))
     TRUE
   }),
 
