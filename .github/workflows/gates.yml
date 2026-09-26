@@ -29,7 +29,7 @@ jobs:
       - uses: r-lib/actions/setup-r@v2
         with:
           r-version: release
-          use-public-cloud: true
+          use-public-rspm: true
 
       - name: Install example deps (derived from the examples themselves)
         run: Rscript scripts/list_example_deps.R --install --src scripts/verify_examples.R
@@ -37,20 +37,31 @@ jobs:
       - name: Run skeleton regression (20 cases)
         shell: bash
         run: |
-          # 失败案例名直接写成 annotation：未授权的维护者/CI 页面之外的人只看得到红灯，
-          # 看不到"哪一例、为什么"。红灯必须自带病因。
-          Rscript scripts/verify_examples.R 2>&1 | tee _verify.log
-          rc=${PIPESTATUS[0]}
-          grep -E "^FAIL: " _verify.log | sed 's/^/::error::/' || true
-          grep -E "SKIP（" _verify.log | sed 's/^/::warning::/' || true
+          # 红灯必须自带病因：CI 日志下载要仓库权限（/logs 返回 403 Must have admin rights），
+          # 公开通道只有 check-run 的 annotations。所以 FAIL 行与"死在汇总之前"的日志尾部
+          # 都必须写成 ::error::，否则红灯只说"红"，不说哪一例、为什么。
+          # 上一版的教训：GitHub 的 bash 默认 set -eo pipefail，`Rscript … | tee` 里 Rscript 非 0
+          # 会当场中断本步骤，后面的 grep 一行都跑不到——病因就是这么被静默丢掉的。
+          # 这一版干脆不用管道：直接重定向到文件，退出码就是 R 的退出码，再 cat 回步骤日志。
+          set +o pipefail
+          if Rscript scripts/verify_examples.R > _verify.log 2>&1; then rc=0; else rc=$?; fi
+          cat _verify.log
+          grep -F "FAIL: " _verify.log | head -10 | sed 's/^/::error::/'
+          grep -F "[SKIP]" _verify.log | head -10 | sed 's/^/::warning::/'
+          if [ "$rc" != "0" ] && ! grep -qF "汇总：" _verify.log; then
+            # 没跑到汇总行 = R 会话中途死掉（依赖缺失 / 会话崩溃），日志尾部就是病因
+            echo "::error::R 会话未跑到汇总行（rc=$rc），以下为日志尾部"
+            tail -12 _verify.log | sed 's/^/::error::/'
+          fi
           exit $rc
 
       - name: Hallucinated-key audit over every documented example (0 allowed)
         shell: bash
         run: |
-          Rscript scripts/check_answer_api.R SKILL.md "references/*.md" "references/feature-engineering/*.md" "evals/outputs/eval-*.md" "examples/replay/skilled-*.md" 2>&1 | tee _apicheck.log
-          rc=${PIPESTATUS[0]}
-          grep -E "\[幻觉\]" _apicheck.log | sed 's/^/::error::/' || true
+          set +o pipefail
+          if Rscript scripts/check_answer_api.R SKILL.md "references/*.md" "references/feature-engineering/*.md" "evals/outputs/eval-*.md" "examples/replay/skilled-*.md" > _apicheck.log 2>&1; then rc=0; else rc=$?; fi
+          cat _apicheck.log
+          grep -F "[幻觉]" _apicheck.log | head -10 | sed 's/^/::error::/'
           exit $rc
 
       - name: On failure, dump session info for triage
