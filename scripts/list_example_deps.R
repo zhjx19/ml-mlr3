@@ -140,6 +140,18 @@ if (flag("--install")) {
     quit(status = 1L)
   }
   if (length(still)) cat(sprintf("::warning::可选依赖缺失（用例将记 SKIP）: %s\n", paste(still, collapse = ", ")))
+  # 环境指纹写成 annotation：CI 的 step summary 在公开 API 里读不到，而"安装步骤 23 秒报成功"
+  # 这种可疑结论必须先能公开复核——它到底装没装、装的是哪一版，一眼可见。
+  key = intersect(c("mlr3", "mlr3verse", "mlr3pipelines", "mlr3tuning", "mlr3fselect",
+    "mlr3mbo", "paradox", "bbotk", "ranger", "xgboost", "e1071", "future", "ps"), need)
+  fingerprint = c(
+    sprintf("::notice::deps need=%d todo=%d still_missing=%s",
+      length(need), length(todo), if (length(still)) paste(still, collapse = ",") else "-"),    sprintf("::notice::R %s | %s", paste(R.version$major, R.version$minor, sep = "."),
+      paste(sprintf("%s=%s", key, vapply(key, \(p) tryCatch(
+        as.character(packageVersion(p)), error = \(e) "MISSING"), character(1))), collapse = " ")),
+    sprintf("::notice::libPaths[1] = %s", .libPaths()[1])
+  )
+  cat(paste(fingerprint, collapse = "\n"), "\n")
   summary = Sys.getenv("GITHUB_STEP_SUMMARY")
   if (nzchar(summary)) {
     vers = vapply(need, \(p) tryCatch(as.character(packageVersion(p)), error = \(e) "MISSING"), character(1))
