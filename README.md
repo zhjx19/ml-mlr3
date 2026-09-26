@@ -1,3 +1,5 @@
+<sub>🌐 <b>中文</b> · <a href="README.en.md">English</a></sub>
+
 # ml-mlr3 · mlr3verse 机器学习建模 Skill
 
 > *「模型代码谁都会写，难的是全程不偷偷摸一下测试集。」*
@@ -15,6 +17,10 @@
 **它把「随手就能写错的 mlr3 建模代码」变成「数据划分、防泄露、调参、最终评估全程守规矩的可复现流程」。**
 
 **30 秒看证据**：两个建模 prompt，各写一遍"无 skill 的典型答案"和"按本 skill 的答案"，再用两把尺子量。典型答案一侧：**6 项纪律违规全 FAIL**（常见种子 `set.seed(42)`、开发期就把测试集切出来直评、把随机 CV 当时序重抽样）+ **8 个字典里根本不存在的键**（`po("imputehci")`、`rsmp("cs")`、`tsk("classif", formula=)`、`msr("classif.kappa")` 等，照抄必报错）。按 skill 写的一侧：**9/9 断言 PASS，0 幻觉键**。对照原文、逐条输出与重跑命令见 **[examples/EXAMPLE.md](examples/EXAMPLE.md)**。
+
+![ml-mlr3 门禁实跑](assets/evidence-card.svg)
+
+<sub>上图为门禁真实转录（`assets/gates-output-2026-09-26.txt`）经 `node scripts/render_evidence_card.mjs` 渲染，可重录、可 diff。</sub>
 
 [它解决什么问题](#它解决什么问题) · [它会交付什么](#它会交付什么) · [快速开始](#快速开始) · [触发方式](#触发方式) · [安全边界](#安全边界) · [验证与测试](#验证与测试) · [版本与更新历史](#版本与更新历史)
 
@@ -38,7 +44,7 @@
 
 **前置条件**：R（建议 ≥ 4.2）+ `mlr3verse`；跑 evals 评分器需 Node ≥ 18（可选）。零 API key，全部本地运行。
 
-入口只留两条：**skills.sh**（一条命令）与 **GitHub**（clone 后软链，适配任意 Agent 的 skills 目录）。
+入口只留两条：**skills.sh**（一条命令）与 **GitHub**（clone 后软链，适配任意 Agent 的 skills 目录）。**为什么不开 Claude Code plugin marketplace 通道**：它需要在仓库里额外维护一份与 `SKILL.md` 平行的版本元数据，历史上已出过一次"两个通道版本号各说各话"；入口越少，能兑现的承诺越实（详见 CHANGELOG [2.4.0]）。
 
 方式一：skills.sh
 
@@ -153,7 +159,7 @@ Rscript scripts/verify_examples.R
 === 汇总：20/20 PASS ===
 ```
 
-**CI 门禁 ≠ 免跑凭证。** 它跑的四道与本机同源，依赖清单也不手抄——由 `scripts/list_example_deps.R` 从示例本身算出（"扫字典算清单"会漏掉字典提供方自己，`classif.lightgbm` 的注册包就是活例子；细则见 CHANGELOG）：
+**CI 门禁 ≠ 免跑凭证。** 它跑的三道门禁与本机同源，依赖清单也不手抄——由 `scripts/list_example_deps.R` 从示例本身算出（"扫字典算清单"会漏掉字典提供方自己，`classif.lightgbm` 的注册包就是活例子；细则见 CHANGELOG）：
 
 ```bash
 Rscript scripts/list_example_deps.R                       # 示例到底要哪些包、本机缺哪个
@@ -162,9 +168,9 @@ Rscript scripts/list_example_deps.R --install             # CI 用的就是这�
 Rscript scripts/list_example_deps.R --mirror --repos <你的 CRAN 镜像>   # 预飞：CI 那份仓库快照里有没有它
 ```
 
-`.github/workflows/gates.yml` 每次 push / PR 做三件事：按上面的清单装依赖 → **全量**跑 20 例（ubuntu + windows，不砍案例、不砍折数、不砍预算）→ 给全部文档示例做一次幻觉键体检；另一个 job 跑断言引擎自检。**红灯自带病因**：失败时把 `FAIL:` / `[幻觉]` 行、以及安装环节的逐包加载回执写成 workflow annotation，而不是只留一个状态灯。**环境与包安装：门禁只诊断、不替你修**——缺什么（含系统库）就点名什么，你自己装好再重试；仓库不会替你 `apt-get`，也不会为了让灯变绿而放宽断言或砍清单。当前一处已知限制：ubuntu job 红在镜像缺 `libglpk.so.40`（igraph 的 RSPM 二进制需要它），不影响任何示例与正文口径，windows job 与本机全绿。
+`.github/workflows/gates.yml` 每次 push / PR 做三件事：按上面的清单装依赖 → **全量**跑 20 例（ubuntu + windows，不砍案例、不砍折数、不砍预算）→ 给全部文档示例做一次幻觉键体检；另一个 job 跑断言引擎自检。**红灯自带病因**：失败时把 `FAIL:` / `[幻觉]` 行、以及安装环节的逐包加载回执写成 workflow annotation，而不是只留一个状态灯。**环境与包安装**：门禁把**系统级前置**在 workflow 里显式声明并安装（ubuntu 缺的 `libglpk.so.40` 由 `apt-get install libglpk40` 补上）——这是给测试环境备料、写在明面上，不是遮掩断言；除系统前置外，门禁只诊断、不放宽断言、不砍清单。此前缺 `libglpk.so.40` 会让 ubuntu 上的 `igraph` 二进制无法 `dlopen`，进而 `classif.kknn` 加载失败、依赖它的用例 `ppl(branch) 分支调参` 无法执行（这才是 ubuntu 红灯的真实影响面）；补系统前置后 ubuntu 应与 windows 同为全绿——本改动待下一次 push 由 CI 验证，不预先声称已绿。windows job 与本机全绿。
 
-诊断脚本自己也有回归：`Rscript scripts/test_install_logged.R scripts/list_example_deps.R`（十节断言）；`--install-probe <包>` 能在本机临时库里复演干净机器的安装路径，绝不动用户库。
+诊断脚本自己也有回归：`Rscript scripts/test_install_logged.R scripts/list_example_deps.R`（十节断言，**需联网**——会在临时库里真实装一个小包，受限网络下可能耗时数分钟）；`--install-probe <包>` 能在本机临时库里复演干净机器的安装路径，绝不动用户库。
 
 **改完示例代码仍须本机实跑一遍**，并把通过率写进 CHANGELOG——CI 只证明"这两个平台、这个时点的 CRAN 快照"跑得通，你交付给用户的环境是你自己的机器，两份实测记录不能互相顶替。
 
