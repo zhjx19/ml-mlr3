@@ -1,0 +1,754 @@
+﻿# ml-mlr3 · 门禁实跑转录（本机 Windows / R 4.6.1）
+
+$ Rscript scripts/verify_examples.R
+[OK] 鐗堟湰鑷唇 v2.4.0锛圫KILL.md / README.md / CHANGELOG.md 涓夊涓€鑷达級
+INFO  [19:55:35.380] [mlr3] Resampling 'cv' is being instantiated on task 'df_bin'
+INFO  [19:55:35.715] [mlr3] Applying learner 'removeconstants_prerobustify.char_to_fct.POSIXct_to_dbl.ord_to_fct.imputehist.missind.impute_logicals.featureunion_robustify.imputeoor.fixfactors.imputesample.collapsefactors.encode.removeconstants_postrobustify.classif.rpart' on task 'df_bin' (iter 1/3)
+INFO  [19:55:37.374] [mlr3] Applying learner 'removeconstants_prerobustify.char_to_fct.POSIXct_to_dbl.ord_to_fct.imputehist.missind.impute_logicals.featureunion_robustify.imputeoor.fixfactors.imputesample.collapsefactors.encode.removeconstants_postrobustify.classif.rpart' on task 'df_bin' (iter 2/3)
+INFO  [19:55:39.022] [mlr3] Applying learner 'removeconstants_prerobustify.char_to_fct.POSIXct_to_dbl.ord_to_fct.imputehist.missind.impute_logicals.featureunion_robustify.imputeoor.fixfactors.imputesample.collapsefactors.encode.removeconstants_postrobustify.classif.rpart' on task 'df_bin' (iter 3/3)
+[PASS] 鏈€灏忛鏋堵峰垎绫?(7.6s)
+INFO  [19:55:42.684] [mlr3] Resampling 'cv' is being instantiated on task 'mtcars'
+INFO  [19:55:42.723] [mlr3] Applying learner 'removeconstants_prerobustify.char_to_fct.POSIXct_to_dbl.ord_to_fct.imputehist.missind.impute_logicals.featureunion_robustify.imputeoor.fixfactors.imputesample.collapsefactors.encode.removeconstants_postrobustify.regr.rpart' on task 'mtcars' (iter 1/3)
+INFO  [19:55:44.302] [mlr3] Applying learner 'removeconstants_prerobustify.char_to_fct.POSIXct_to_dbl.ord_to_fct.imputehist.missind.impute_logicals.featureunion_robustify.imputeoor.fixfactors.imputesample.collapsefactors.encode.removeconstants_postrobustify.regr.rpart' on task 'mtcars' (iter 2/3)
+INFO  [19:55:45.899] [mlr3] Applying learner 'removeconstants_prerobustify.char_to_fct.POSIXct_to_dbl.ord_to_fct.imputehist.missind.impute_logicals.featureunion_robustify.imputeoor.fixfactors.imputesample.collapsefactors.encode.removeconstants_postrobustify.regr.rpart' on task 'mtcars' (iter 3/3)
+[PASS] 鏈€灏忛鏋堵峰洖褰?(6.3s)
+INFO  [19:55:48.854] [bbotk] Starting to optimize 2 parameter(s) with '<OptimizerBatchRandomSearch>' and '<TerminatorEvals> [n_evals=5, k=0]'
+INFO  [19:55:48.926] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:55:48.963] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:55:48.989] [mlr3] Applying learner 'classif.svm' on task 'df_bin' (iter 1/3)
+INFO  [19:55:49.078] [mlr3] Applying learner 'classif.svm' on task 'df_bin' (iter 2/3)
+INFO  [19:55:49.141] [mlr3] Applying learner 'classif.svm' on task 'df_bin' (iter 3/3)
+INFO  [19:55:49.193] [mlr3] Finished benchmark
+INFO  [19:55:49.348] [bbotk] Result of batch 1:
+INFO  [19:55:49.370] [bbotk]       cost     gamma classif.auc warnings errors runtime_learners
+INFO  [19:55:49.370] [bbotk]  -1.052076 -2.382155           1        0      0             0.11
+INFO  [19:55:49.370] [bbotk]                                 uhash
+INFO  [19:55:49.370] [bbotk]  12cf4ef2-c0e7-4d06-907f-4830edb42ddf
+INFO  [19:55:49.399] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:55:49.428] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:55:49.458] [mlr3] Applying learner 'classif.svm' on task 'df_bin' (iter 1/3)
+INFO  [19:55:49.518] [mlr3] Applying learner 'classif.svm' on task 'df_bin' (iter 2/3)
+INFO  [19:55:49.583] [mlr3] Applying learner 'classif.svm' on task 'df_bin' (iter 3/3)
+INFO  [19:55:49.643] [mlr3] Finished benchmark
+INFO  [19:55:49.793] [bbotk] Result of batch 2:
+INFO  [19:55:49.801] [bbotk]       cost     gamma classif.auc warnings errors runtime_learners
+INFO  [19:55:49.801] [bbotk]  -2.480363 -5.148596   0.3333333        0      0              0.1
+INFO  [19:55:49.801] [bbotk]                                 uhash
+INFO  [19:55:49.801] [bbotk]  9d1051c9-2d8e-4db6-809b-1ffde40f6155
+INFO  [19:55:49.838] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:55:49.868] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:55:49.897] [mlr3] Applying learner 'classif.svm' on task 'df_bin' (iter 1/3)
+INFO  [19:55:49.943] [mlr3] Applying learner 'classif.svm' on task 'df_bin' (iter 2/3)
+INFO  [19:55:49.997] [mlr3] Applying learner 'classif.svm' on task 'df_bin' (iter 3/3)
+INFO  [19:55:50.054] [mlr3] Finished benchmark
+INFO  [19:55:50.198] [bbotk] Result of batch 3:
+INFO  [19:55:50.205] [bbotk]       cost      gamma classif.auc warnings errors runtime_learners
+INFO  [19:55:50.205] [bbotk]  0.5988945 -0.7195537           1        0      0             0.03
+INFO  [19:55:50.205] [bbotk]                                 uhash
+INFO  [19:55:50.205] [bbotk]  7a844e3d-9a51-48e6-937c-fe065f9870c9
+INFO  [19:55:50.237] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:55:50.265] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:55:50.296] [mlr3] Applying learner 'classif.svm' on task 'df_bin' (iter 1/3)
+INFO  [19:55:50.368] [mlr3] Applying learner 'classif.svm' on task 'df_bin' (iter 2/3)
+INFO  [19:55:50.435] [mlr3] Applying learner 'classif.svm' on task 'df_bin' (iter 3/3)
+INFO  [19:55:50.488] [mlr3] Finished benchmark
+INFO  [19:55:50.631] [bbotk] Result of batch 4:
+INFO  [19:55:50.639] [bbotk]       cost      gamma classif.auc warnings errors runtime_learners
+INFO  [19:55:50.639] [bbotk]  -1.404063 -0.6237075           1        0      0              0.1
+INFO  [19:55:50.639] [bbotk]                                 uhash
+INFO  [19:55:50.639] [bbotk]  992555a6-c10d-4892-9eac-945af37fdb25
+INFO  [19:55:50.675] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:55:50.707] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:55:50.730] [mlr3] Applying learner 'classif.svm' on task 'df_bin' (iter 1/3)
+INFO  [19:55:50.778] [mlr3] Applying learner 'classif.svm' on task 'df_bin' (iter 2/3)
+INFO  [19:55:50.834] [mlr3] Applying learner 'classif.svm' on task 'df_bin' (iter 3/3)
+INFO  [19:55:50.888] [mlr3] Finished benchmark
+INFO  [19:55:51.025] [bbotk] Result of batch 5:
+INFO  [19:55:51.033] [bbotk]        cost     gamma classif.auc warnings errors runtime_learners
+INFO  [19:55:51.033] [bbotk]  0.04651387 -3.419625           1        0      0             0.03
+INFO  [19:55:51.033] [bbotk]                                 uhash
+INFO  [19:55:51.033] [bbotk]  c9065ed0-6903-4625-82e3-23e4a1295ba8
+INFO  [19:55:51.206] [bbotk] Finished optimizing after 5 evaluation(s)
+INFO  [19:55:51.211] [bbotk] Result:
+INFO  [19:55:51.219] [bbotk]       cost     gamma learner_param_vals  x_domain classif.auc
+INFO  [19:55:51.219] [bbotk]      <num>     <num>             <list>    <list>       <num>
+INFO  [19:55:51.219] [bbotk]  -1.052076 -2.382155          <list[4]> <list[2]>           1
+[PASS] auto_tuner锛坰vm 鏉′欢鍙傛暟锛?(3.7s)
+INFO  [19:55:53.045] [bbotk] Starting to optimize 2 parameter(s) with '<OptimizerBatchRandomSearch>' and '<TerminatorEvals> [n_evals=4, k=0]'
+INFO  [19:55:53.118] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:55:53.194] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:55:53.221] [mlr3] Applying learner 'prep_branch.prep_nop.prep_pca.prep_unbranch.branch.classif.rpart.classif.kknn.unbranch' on task 'df_bin' (iter 1/3)
+INFO  [19:55:53.692] [mlr3] Applying learner 'prep_branch.prep_nop.prep_pca.prep_unbranch.branch.classif.rpart.classif.kknn.unbranch' on task 'df_bin' (iter 2/3)
+INFO  [19:55:54.124] [mlr3] Applying learner 'prep_branch.prep_nop.prep_pca.prep_unbranch.branch.classif.rpart.classif.kknn.unbranch' on task 'df_bin' (iter 3/3)
+INFO  [19:55:54.632] [mlr3] Finished benchmark
+INFO  [19:55:54.901] [bbotk] Result of batch 1:
+INFO  [19:55:54.907] [bbotk]  prep_branch.selection branch.selection classif.ce warnings errors
+INFO  [19:55:54.907] [bbotk]                    nop     classif.kknn          0        0      0
+INFO  [19:55:54.907] [bbotk]  runtime_learners                                uhash
+INFO  [19:55:54.907] [bbotk]              1.19 a952c7ff-982c-40d5-8346-0ca385875782
+INFO  [19:55:54.941] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:55:55.021] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:55:55.062] [mlr3] Applying learner 'prep_branch.prep_nop.prep_pca.prep_unbranch.branch.classif.rpart.classif.kknn.unbranch' on task 'df_bin' (iter 1/3)
+INFO  [19:55:55.746] [mlr3] Applying learner 'prep_branch.prep_nop.prep_pca.prep_unbranch.branch.classif.rpart.classif.kknn.unbranch' on task 'df_bin' (iter 2/3)
+INFO  [19:55:56.350] [mlr3] Applying learner 'prep_branch.prep_nop.prep_pca.prep_unbranch.branch.classif.rpart.classif.kknn.unbranch' on task 'df_bin' (iter 3/3)
+INFO  [19:55:57.065] [mlr3] Finished benchmark
+INFO  [19:55:57.346] [bbotk] Result of batch 2:
+INFO  [19:55:57.361] [bbotk]  prep_branch.selection branch.selection classif.ce warnings errors
+INFO  [19:55:57.361] [bbotk]                    pca    classif.rpart          0        0      0
+INFO  [19:55:57.361] [bbotk]  runtime_learners                                uhash
+INFO  [19:55:57.361] [bbotk]              1.73 b3382741-2208-45fe-9920-874121901976
+INFO  [19:55:57.398] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:55:57.468] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:55:57.510] [mlr3] Applying learner 'prep_branch.prep_nop.prep_pca.prep_unbranch.branch.classif.rpart.classif.kknn.unbranch' on task 'df_bin' (iter 1/3)
+INFO  [19:55:57.971] [mlr3] Applying learner 'prep_branch.prep_nop.prep_pca.prep_unbranch.branch.classif.rpart.classif.kknn.unbranch' on task 'df_bin' (iter 2/3)
+INFO  [19:55:58.498] [mlr3] Applying learner 'prep_branch.prep_nop.prep_pca.prep_unbranch.branch.classif.rpart.classif.kknn.unbranch' on task 'df_bin' (iter 3/3)
+INFO  [19:55:58.948] [mlr3] Finished benchmark
+INFO  [19:55:59.213] [bbotk] Result of batch 3:
+INFO  [19:55:59.220] [bbotk]  prep_branch.selection branch.selection classif.ce warnings errors
+INFO  [19:55:59.220] [bbotk]                    nop     classif.kknn          0        0      0
+INFO  [19:55:59.220] [bbotk]  runtime_learners                                uhash
+INFO  [19:55:59.220] [bbotk]              1.22 2fce6006-5afd-4909-974d-be2d0f664acd
+INFO  [19:55:59.259] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:55:59.339] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:55:59.370] [mlr3] Applying learner 'prep_branch.prep_nop.prep_pca.prep_unbranch.branch.classif.rpart.classif.kknn.unbranch' on task 'df_bin' (iter 1/3)
+INFO  [19:55:59.988] [mlr3] Applying learner 'prep_branch.prep_nop.prep_pca.prep_unbranch.branch.classif.rpart.classif.kknn.unbranch' on task 'df_bin' (iter 2/3)
+INFO  [19:56:00.619] [mlr3] Applying learner 'prep_branch.prep_nop.prep_pca.prep_unbranch.branch.classif.rpart.classif.kknn.unbranch' on task 'df_bin' (iter 3/3)
+INFO  [19:56:01.230] [mlr3] Finished benchmark
+INFO  [19:56:01.481] [bbotk] Result of batch 4:
+INFO  [19:56:01.487] [bbotk]  prep_branch.selection branch.selection classif.ce warnings errors
+INFO  [19:56:01.487] [bbotk]                    pca     classif.kknn 0.01449275        0      0
+INFO  [19:56:01.487] [bbotk]  runtime_learners                                uhash
+INFO  [19:56:01.487] [bbotk]               1.6 dbe082a2-2ab4-41a9-886b-1c0b556e17d9
+INFO  [19:56:01.591] [bbotk] Finished optimizing after 4 evaluation(s)
+INFO  [19:56:01.596] [bbotk] Result:
+INFO  [19:56:01.602] [bbotk]  prep_branch.selection branch.selection learner_param_vals  x_domain classif.ce
+INFO  [19:56:01.602] [bbotk]                 <char>           <char>             <list>    <list>      <num>
+INFO  [19:56:01.602] [bbotk]                    nop     classif.kknn          <list[4]> <list[2]>          0
+[PASS] ppl(branch) 鍒嗘敮璋冨弬 (10.6s)
+INFO  [19:56:01.939] [mlr3] Applying learner 'regr.rpart' on task 'd_ts' (iter 1/3)
+INFO  [19:56:01.969] [mlr3] Applying learner 'regr.rpart' on task 'd_ts' (iter 2/3)
+INFO  [19:56:02.003] [mlr3] Applying learner 'regr.rpart' on task 'd_ts' (iter 3/3)
+[PASS] 鏃跺簭路custom 婊氬姩鎶?(0.2s)
+INFO  [19:56:02.435] [mlr3] Running benchmark with 6 resampling iterations
+INFO  [19:56:02.465] [mlr3] Applying learner 'classif.rpart.tuned' on task 'df_bin' (iter 1/3)
+INFO  [19:56:02.721] [bbotk] Starting to optimize 1 parameter(s) with '<OptimizerBatchRandomSearch>' and '<TerminatorEvals> [n_evals=4, k=0]'
+INFO  [19:56:02.775] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:02.797] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:02.827] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 1/3)
+INFO  [19:56:02.975] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 2/3)
+INFO  [19:56:03.041] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 3/3)
+INFO  [19:56:03.097] [mlr3] Finished benchmark
+INFO  [19:56:03.241] [bbotk] Result of batch 1:
+INFO  [19:56:03.251] [bbotk]         cp classif.auc warnings errors runtime_learners
+INFO  [19:56:03.251] [bbotk]  -4.400117           1        0      0             0.07
+INFO  [19:56:03.251] [bbotk]                                 uhash
+INFO  [19:56:03.251] [bbotk]  6e08350e-8bf2-41cd-9181-706aa8f439e1
+INFO  [19:56:03.279] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:03.314] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:03.347] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 1/3)
+INFO  [19:56:03.414] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 2/3)
+INFO  [19:56:03.471] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 3/3)
+INFO  [19:56:03.525] [mlr3] Finished benchmark
+INFO  [19:56:03.657] [bbotk] Result of batch 2:
+INFO  [19:56:03.664] [bbotk]         cp classif.auc warnings errors runtime_learners
+INFO  [19:56:03.664] [bbotk]  -2.835872           1        0      0             0.04
+INFO  [19:56:03.664] [bbotk]                                 uhash
+INFO  [19:56:03.664] [bbotk]  2859c709-1586-40fe-b2d6-362775ea1fba
+INFO  [19:56:03.687] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:03.717] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:03.752] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 1/3)
+INFO  [19:56:03.815] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 2/3)
+INFO  [19:56:03.884] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 3/3)
+INFO  [19:56:03.943] [mlr3] Finished benchmark
+INFO  [19:56:04.089] [bbotk] Result of batch 3:
+INFO  [19:56:04.099] [bbotk]         cp classif.auc warnings errors runtime_learners
+INFO  [19:56:04.099] [bbotk]  -3.529776           1        0      0             0.05
+INFO  [19:56:04.099] [bbotk]                                 uhash
+INFO  [19:56:04.099] [bbotk]  2312900b-66b7-4e67-9222-3ec08ccaef63
+INFO  [19:56:04.134] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:04.171] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:04.204] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 1/3)
+INFO  [19:56:04.271] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 2/3)
+INFO  [19:56:04.338] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 3/3)
+INFO  [19:56:04.404] [mlr3] Finished benchmark
+INFO  [19:56:04.623] [bbotk] Result of batch 4:
+INFO  [19:56:04.629] [bbotk]         cp classif.auc warnings errors runtime_learners
+INFO  [19:56:04.629] [bbotk]  -2.836879           1        0      0             0.05
+INFO  [19:56:04.629] [bbotk]                                 uhash
+INFO  [19:56:04.629] [bbotk]  cbeef180-0b7e-472e-9e1d-d299221afd4a
+INFO  [19:56:04.763] [bbotk] Finished optimizing after 4 evaluation(s)
+INFO  [19:56:04.770] [bbotk] Result:
+INFO  [19:56:04.778] [bbotk]         cp learner_param_vals  x_domain classif.auc
+INFO  [19:56:04.778] [bbotk]      <num>             <list>    <list>       <num>
+INFO  [19:56:04.778] [bbotk]  -4.400117          <list[2]> <list[1]>           1
+INFO  [19:56:04.849] [mlr3] Applying learner 'classif.rpart.tuned' on task 'df_bin' (iter 2/3)
+INFO  [19:56:05.086] [bbotk] Starting to optimize 1 parameter(s) with '<OptimizerBatchRandomSearch>' and '<TerminatorEvals> [n_evals=4, k=0]'
+INFO  [19:56:05.140] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:05.175] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:05.205] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 1/3)
+INFO  [19:56:05.266] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 2/3)
+INFO  [19:56:05.327] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 3/3)
+INFO  [19:56:05.389] [mlr3] Finished benchmark
+INFO  [19:56:05.515] [bbotk] Result of batch 1:
+INFO  [19:56:05.522] [bbotk]         cp classif.auc warnings errors runtime_learners
+INFO  [19:56:05.522] [bbotk]  -3.189261           1        0      0             0.08
+INFO  [19:56:05.522] [bbotk]                                 uhash
+INFO  [19:56:05.522] [bbotk]  4485901a-0555-4365-9562-69ddcae76515
+INFO  [19:56:05.545] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:05.579] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:05.613] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 1/3)
+INFO  [19:56:05.671] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 2/3)
+INFO  [19:56:05.722] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 3/3)
+INFO  [19:56:05.770] [mlr3] Finished benchmark
+INFO  [19:56:05.935] [bbotk] Result of batch 2:
+INFO  [19:56:05.941] [bbotk]         cp classif.auc warnings errors runtime_learners
+INFO  [19:56:05.941] [bbotk]  -6.757404           1        0      0             0.08
+INFO  [19:56:05.941] [bbotk]                                 uhash
+INFO  [19:56:05.941] [bbotk]  e91fbb88-9afe-40b4-967b-d745377e2f1e
+INFO  [19:56:05.965] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:05.989] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:06.015] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 1/3)
+INFO  [19:56:06.074] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 2/3)
+INFO  [19:56:06.132] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 3/3)
+INFO  [19:56:06.185] [mlr3] Finished benchmark
+INFO  [19:56:06.340] [bbotk] Result of batch 3:
+INFO  [19:56:06.346] [bbotk]         cp classif.auc warnings errors runtime_learners
+INFO  [19:56:06.346] [bbotk]  -2.755621           1        0      0             0.06
+INFO  [19:56:06.346] [bbotk]                                 uhash
+INFO  [19:56:06.346] [bbotk]  21bded05-21b5-446a-beaf-7d029728139b
+INFO  [19:56:06.369] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:06.398] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:06.433] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 1/3)
+INFO  [19:56:06.493] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 2/3)
+INFO  [19:56:06.559] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 3/3)
+INFO  [19:56:06.616] [mlr3] Finished benchmark
+INFO  [19:56:06.757] [bbotk] Result of batch 4:
+INFO  [19:56:06.766] [bbotk]         cp classif.auc warnings errors runtime_learners
+INFO  [19:56:06.766] [bbotk]  -4.886642           1        0      0             0.09
+INFO  [19:56:06.766] [bbotk]                                 uhash
+INFO  [19:56:06.766] [bbotk]  d7d18d6b-83f6-433a-96e8-4a5261c57ba2
+INFO  [19:56:06.864] [bbotk] Finished optimizing after 4 evaluation(s)
+INFO  [19:56:06.869] [bbotk] Result:
+INFO  [19:56:06.876] [bbotk]         cp learner_param_vals  x_domain classif.auc
+INFO  [19:56:06.876] [bbotk]      <num>             <list>    <list>       <num>
+INFO  [19:56:06.876] [bbotk]  -3.189261          <list[2]> <list[1]>           1
+INFO  [19:56:06.947] [mlr3] Applying learner 'classif.rpart.tuned' on task 'df_bin' (iter 3/3)
+INFO  [19:56:07.223] [bbotk] Starting to optimize 1 parameter(s) with '<OptimizerBatchRandomSearch>' and '<TerminatorEvals> [n_evals=4, k=0]'
+INFO  [19:56:07.281] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:07.316] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:07.354] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 1/3)
+INFO  [19:56:07.417] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 2/3)
+INFO  [19:56:07.478] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 3/3)
+INFO  [19:56:07.530] [mlr3] Finished benchmark
+INFO  [19:56:07.720] [bbotk] Result of batch 1:
+INFO  [19:56:07.730] [bbotk]         cp classif.auc warnings errors runtime_learners
+INFO  [19:56:07.730] [bbotk]  -3.098971           1        0      0             0.09
+INFO  [19:56:07.730] [bbotk]                                 uhash
+INFO  [19:56:07.730] [bbotk]  b44eb53d-ecc2-409b-a911-b9700139cbf9
+INFO  [19:56:07.764] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:07.792] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:07.813] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 1/3)
+INFO  [19:56:07.867] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 2/3)
+INFO  [19:56:07.929] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 3/3)
+INFO  [19:56:07.999] [mlr3] Finished benchmark
+INFO  [19:56:08.142] [bbotk] Result of batch 2:
+INFO  [19:56:08.152] [bbotk]         cp classif.auc warnings errors runtime_learners
+INFO  [19:56:08.152] [bbotk]  -4.523849           1        0      0             0.08
+INFO  [19:56:08.152] [bbotk]                                 uhash
+INFO  [19:56:08.152] [bbotk]  b77fe29f-704c-427b-91b8-d63821b894f1
+INFO  [19:56:08.182] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:08.212] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:08.247] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 1/3)
+INFO  [19:56:08.312] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 2/3)
+INFO  [19:56:08.378] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 3/3)
+INFO  [19:56:08.441] [mlr3] Finished benchmark
+INFO  [19:56:08.589] [bbotk] Result of batch 3:
+INFO  [19:56:08.596] [bbotk]         cp classif.auc warnings errors runtime_learners
+INFO  [19:56:08.596] [bbotk]  -5.275187           1        0      0             0.03
+INFO  [19:56:08.596] [bbotk]                                 uhash
+INFO  [19:56:08.596] [bbotk]  9f6b1668-1a67-4abd-9772-83fc5f7817a5
+INFO  [19:56:08.621] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:08.651] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:08.684] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 1/3)
+INFO  [19:56:08.757] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 2/3)
+INFO  [19:56:08.814] [mlr3] Applying learner 'classif.rpart' on task 'df_bin' (iter 3/3)
+INFO  [19:56:08.863] [mlr3] Finished benchmark
+INFO  [19:56:09.005] [bbotk] Result of batch 4:
+INFO  [19:56:09.011] [bbotk]         cp classif.auc warnings errors runtime_learners
+INFO  [19:56:09.011] [bbotk]  -4.418419           1        0      0             0.09
+INFO  [19:56:09.011] [bbotk]                                 uhash
+INFO  [19:56:09.011] [bbotk]  54d86ea3-2ad7-4c06-91d2-bf173f030703
+INFO  [19:56:09.138] [bbotk] Finished optimizing after 4 evaluation(s)
+INFO  [19:56:09.143] [bbotk] Result:
+INFO  [19:56:09.150] [bbotk]         cp learner_param_vals  x_domain classif.auc
+INFO  [19:56:09.150] [bbotk]      <num>             <list>    <list>       <num>
+INFO  [19:56:09.150] [bbotk]  -3.098971          <list[2]> <list[1]>           1
+INFO  [19:56:09.224] [mlr3] Applying learner 'classif.ranger.tuned' on task 'df_bin' (iter 1/3)
+INFO  [19:56:09.488] [bbotk] Starting to optimize 1 parameter(s) with '<OptimizerBatchRandomSearch>' and '<TerminatorEvals> [n_evals=4, k=0]'
+INFO  [19:56:09.532] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:09.554] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:09.584] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 1/3)
+INFO  [19:56:09.702] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 2/3)
+INFO  [19:56:09.773] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 3/3)
+INFO  [19:56:09.855] [mlr3] Finished benchmark
+INFO  [19:56:10.026] [bbotk] Result of batch 1:
+INFO  [19:56:10.032] [bbotk]  mtry classif.auc warnings errors runtime_learners
+INFO  [19:56:10.032] [bbotk]     1           1        0      0             0.15
+INFO  [19:56:10.032] [bbotk]                                 uhash
+INFO  [19:56:10.032] [bbotk]  5f38a7a6-d180-4518-a1a3-ca7c0f474407
+INFO  [19:56:10.052] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:10.077] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:10.102] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 1/3)
+INFO  [19:56:10.172] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 2/3)
+INFO  [19:56:10.238] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 3/3)
+INFO  [19:56:10.326] [mlr3] Finished benchmark
+INFO  [19:56:10.444] [bbotk] Result of batch 2:
+INFO  [19:56:10.451] [bbotk]  mtry classif.auc warnings errors runtime_learners
+INFO  [19:56:10.451] [bbotk]     2           1        0      0             0.13
+INFO  [19:56:10.451] [bbotk]                                 uhash
+INFO  [19:56:10.451] [bbotk]  cd26c1d7-0776-4d19-b099-0e0d3b39a7bc
+INFO  [19:56:10.490] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:10.520] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:10.547] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 1/3)
+INFO  [19:56:10.617] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 2/3)
+INFO  [19:56:10.700] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 3/3)
+INFO  [19:56:10.807] [mlr3] Finished benchmark
+INFO  [19:56:10.929] [bbotk] Result of batch 3:
+INFO  [19:56:10.935] [bbotk]  mtry classif.auc warnings errors runtime_learners
+INFO  [19:56:10.935] [bbotk]     2           1        0      0             0.12
+INFO  [19:56:10.935] [bbotk]                                 uhash
+INFO  [19:56:10.935] [bbotk]  fc3f14b9-33b1-42a6-9c58-18748fbe92c1
+INFO  [19:56:10.963] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:10.996] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:11.037] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 1/3)
+INFO  [19:56:11.129] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 2/3)
+INFO  [19:56:11.206] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 3/3)
+INFO  [19:56:11.288] [mlr3] Finished benchmark
+INFO  [19:56:11.415] [bbotk] Result of batch 4:
+INFO  [19:56:11.423] [bbotk]  mtry classif.auc warnings errors runtime_learners
+INFO  [19:56:11.423] [bbotk]     2           1        0      0             0.16
+INFO  [19:56:11.423] [bbotk]                                 uhash
+INFO  [19:56:11.423] [bbotk]  3c055a79-86d3-4410-826f-db14a89059d7
+INFO  [19:56:11.511] [bbotk] Finished optimizing after 4 evaluation(s)
+INFO  [19:56:11.516] [bbotk] Result:
+INFO  [19:56:11.523] [bbotk]   mtry learner_param_vals  x_domain classif.auc
+INFO  [19:56:11.523] [bbotk]  <int>             <list>    <list>       <num>
+INFO  [19:56:11.523] [bbotk]      1          <list[2]> <list[1]>           1
+INFO  [19:56:11.628] [mlr3] Applying learner 'classif.ranger.tuned' on task 'df_bin' (iter 2/3)
+INFO  [19:56:11.929] [bbotk] Starting to optimize 1 parameter(s) with '<OptimizerBatchRandomSearch>' and '<TerminatorEvals> [n_evals=4, k=0]'
+INFO  [19:56:11.984] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:12.004] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:12.035] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 1/3)
+INFO  [19:56:12.130] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 2/3)
+INFO  [19:56:12.212] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 3/3)
+INFO  [19:56:12.299] [mlr3] Finished benchmark
+INFO  [19:56:12.449] [bbotk] Result of batch 1:
+INFO  [19:56:12.457] [bbotk]  mtry classif.auc warnings errors runtime_learners
+INFO  [19:56:12.457] [bbotk]     1           1        0      0             0.18
+INFO  [19:56:12.457] [bbotk]                                 uhash
+INFO  [19:56:12.457] [bbotk]  8429f86b-a181-4f63-95e1-f02e77900e23
+INFO  [19:56:12.483] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:12.506] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:12.534] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 1/3)
+INFO  [19:56:12.623] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 2/3)
+INFO  [19:56:12.710] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 3/3)
+INFO  [19:56:12.789] [mlr3] Finished benchmark
+INFO  [19:56:12.920] [bbotk] Result of batch 2:
+INFO  [19:56:12.927] [bbotk]  mtry classif.auc warnings errors runtime_learners
+INFO  [19:56:12.927] [bbotk]     2           1        0      0             0.12
+INFO  [19:56:12.927] [bbotk]                                 uhash
+INFO  [19:56:12.927] [bbotk]  d08df4e4-780b-497c-b2d0-159168caa124
+INFO  [19:56:12.951] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:12.975] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:13.007] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 1/3)
+INFO  [19:56:13.097] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 2/3)
+INFO  [19:56:13.178] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 3/3)
+INFO  [19:56:13.277] [mlr3] Finished benchmark
+INFO  [19:56:13.441] [bbotk] Result of batch 3:
+INFO  [19:56:13.448] [bbotk]  mtry classif.auc warnings errors runtime_learners
+INFO  [19:56:13.448] [bbotk]     1           1        0      0             0.14
+INFO  [19:56:13.448] [bbotk]                                 uhash
+INFO  [19:56:13.448] [bbotk]  e49fb965-d41f-4467-be08-240413e7686d
+INFO  [19:56:13.471] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:13.495] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:13.521] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 1/3)
+INFO  [19:56:13.605] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 2/3)
+INFO  [19:56:13.683] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 3/3)
+INFO  [19:56:13.770] [mlr3] Finished benchmark
+INFO  [19:56:13.912] [bbotk] Result of batch 4:
+INFO  [19:56:13.917] [bbotk]  mtry classif.auc warnings errors runtime_learners
+INFO  [19:56:13.917] [bbotk]     2           1        0      0             0.14
+INFO  [19:56:13.917] [bbotk]                                 uhash
+INFO  [19:56:13.917] [bbotk]  05893450-0bc7-4b97-aa28-89c0e4e918fe
+INFO  [19:56:14.013] [bbotk] Finished optimizing after 4 evaluation(s)
+INFO  [19:56:14.018] [bbotk] Result:
+INFO  [19:56:14.024] [bbotk]   mtry learner_param_vals  x_domain classif.auc
+INFO  [19:56:14.024] [bbotk]  <int>             <list>    <list>       <num>
+INFO  [19:56:14.024] [bbotk]      1          <list[2]> <list[1]>           1
+INFO  [19:56:14.134] [mlr3] Applying learner 'classif.ranger.tuned' on task 'df_bin' (iter 3/3)
+INFO  [19:56:14.411] [bbotk] Starting to optimize 1 parameter(s) with '<OptimizerBatchRandomSearch>' and '<TerminatorEvals> [n_evals=4, k=0]'
+INFO  [19:56:14.476] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:14.510] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:14.540] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 1/3)
+INFO  [19:56:14.617] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 2/3)
+INFO  [19:56:14.706] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 3/3)
+INFO  [19:56:14.806] [mlr3] Finished benchmark
+INFO  [19:56:14.941] [bbotk] Result of batch 1:
+INFO  [19:56:14.947] [bbotk]  mtry classif.auc warnings errors runtime_learners
+INFO  [19:56:14.947] [bbotk]     1           1        0      0             0.13
+INFO  [19:56:14.947] [bbotk]                                 uhash
+INFO  [19:56:14.947] [bbotk]  c15e85bd-10ab-4aef-b735-da1e2c0a8d07
+INFO  [19:56:14.968] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:14.991] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:15.015] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 1/3)
+INFO  [19:56:15.098] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 2/3)
+INFO  [19:56:15.175] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 3/3)
+INFO  [19:56:15.260] [mlr3] Finished benchmark
+INFO  [19:56:15.415] [bbotk] Result of batch 2:
+INFO  [19:56:15.422] [bbotk]  mtry classif.auc warnings errors runtime_learners
+INFO  [19:56:15.422] [bbotk]     1           1        0      0             0.14
+INFO  [19:56:15.422] [bbotk]                                 uhash
+INFO  [19:56:15.422] [bbotk]  4a7196b0-01e9-4f2e-964a-15e7ab35546d
+INFO  [19:56:15.445] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:15.467] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:15.497] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 1/3)
+INFO  [19:56:15.579] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 2/3)
+INFO  [19:56:15.704] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 3/3)
+INFO  [19:56:15.789] [mlr3] Finished benchmark
+INFO  [19:56:15.939] [bbotk] Result of batch 3:
+INFO  [19:56:15.947] [bbotk]  mtry classif.auc warnings errors runtime_learners
+INFO  [19:56:15.947] [bbotk]     1           1        0      0             0.17
+INFO  [19:56:15.947] [bbotk]                                 uhash
+INFO  [19:56:15.947] [bbotk]  c706d9ef-4fd0-43a2-bd0b-379cfdfc65fd
+INFO  [19:56:15.973] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:15.995] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:16.018] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 1/3)
+INFO  [19:56:16.111] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 2/3)
+INFO  [19:56:16.223] [mlr3] Applying learner 'classif.ranger' on task 'df_bin' (iter 3/3)
+INFO  [19:56:16.312] [mlr3] Finished benchmark
+INFO  [19:56:16.475] [bbotk] Result of batch 4:
+INFO  [19:56:16.481] [bbotk]  mtry classif.auc warnings errors runtime_learners
+INFO  [19:56:16.481] [bbotk]     1           1        0      0             0.15
+INFO  [19:56:16.481] [bbotk]                                 uhash
+INFO  [19:56:16.481] [bbotk]  27ba748b-941c-4dd8-963e-dec3f28bcce6
+INFO  [19:56:16.556] [bbotk] Finished optimizing after 4 evaluation(s)
+INFO  [19:56:16.560] [bbotk] Result:
+INFO  [19:56:16.565] [bbotk]   mtry learner_param_vals  x_domain classif.auc
+INFO  [19:56:16.565] [bbotk]  <int>             <list>    <list>       <num>
+INFO  [19:56:16.565] [bbotk]      1          <list[2]> <list[1]>           1
+INFO  [19:56:16.667] [mlr3] Finished benchmark
+[PASS] benchmark 璋冧紭鍚庢瘮杈?(14.7s)
+INFO  [19:56:17.545] [mlr3] Resampling 'cv' is being instantiated on task 'd_es'
+INFO  [19:56:17.574] [mlr3] Applying learner 'classif.xgboost' on task 'd_es' (iter 1/3)
+INFO  [19:56:17.710] [mlr3] Applying learner 'classif.xgboost' on task 'd_es' (iter 2/3)
+INFO  [19:56:17.837] [mlr3] Applying learner 'classif.xgboost' on task 'd_es' (iter 3/3)
+[PASS] 鏃╁仠路best_valid_score (1.3s)
+[PASS] selector路鏁存暟鍒椾笌绗﹀彿閫夋嫨鍣?(0.6s)
+[PASS] greplicate + materialize (1.3s)
+[PASS] datefeatures 鏃ュ巻灞曞紑 (0.7s)
+[PASS] Task路璁块棶鍣ㄨ涔?(0.1s)
+INFO  [19:56:21.734] [bbotk] Starting to optimize 3 parameter(s) with '<OptimizerBatchRandomSearch>' and '<TerminatorEvals> [n_evals=4, k=0]'
+INFO  [19:56:21.823] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:21.848] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:21.881] [mlr3] Applying learner 'classif.rpart' on task 'd_t' (iter 1/3)
+INFO  [19:56:21.936] [mlr3] Applying learner 'classif.rpart' on task 'd_t' (iter 2/3)
+INFO  [19:56:22.001] [mlr3] Applying learner 'classif.rpart' on task 'd_t' (iter 3/3)
+INFO  [19:56:22.065] [mlr3] Finished benchmark
+INFO  [19:56:22.164] [bbotk] Result of batch 1:
+INFO  [19:56:22.169] [bbotk]         cp maxdepth minbucket classif.ce warnings errors runtime_learners
+INFO  [19:56:22.169] [bbotk]  -2.492216        4         5  0.3704694        0      0             0.08
+INFO  [19:56:22.169] [bbotk]                                 uhash
+INFO  [19:56:22.169] [bbotk]  64dd42a9-7a9e-4c6d-81fc-f51b442a04bb
+INFO  [19:56:22.204] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:22.232] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:22.256] [mlr3] Applying learner 'classif.rpart' on task 'd_t' (iter 1/3)
+INFO  [19:56:22.306] [mlr3] Applying learner 'classif.rpart' on task 'd_t' (iter 2/3)
+INFO  [19:56:22.361] [mlr3] Applying learner 'classif.rpart' on task 'd_t' (iter 3/3)
+INFO  [19:56:22.412] [mlr3] Finished benchmark
+INFO  [19:56:22.538] [bbotk] Result of batch 2:
+INFO  [19:56:22.547] [bbotk]         cp maxdepth minbucket classif.ce warnings errors runtime_learners
+INFO  [19:56:22.547] [bbotk]  -4.536839        6         1  0.4991087        0      0             0.05
+INFO  [19:56:22.547] [bbotk]                                 uhash
+INFO  [19:56:22.547] [bbotk]  0d0d4772-48c2-4e0a-9e0c-d7243149e1d4
+INFO  [19:56:22.606] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:22.642] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:22.676] [mlr3] Applying learner 'classif.rpart' on task 'd_t' (iter 1/3)
+INFO  [19:56:22.737] [mlr3] Applying learner 'classif.rpart' on task 'd_t' (iter 2/3)
+INFO  [19:56:22.789] [mlr3] Applying learner 'classif.rpart' on task 'd_t' (iter 3/3)
+INFO  [19:56:22.828] [mlr3] Finished benchmark
+INFO  [19:56:22.933] [bbotk] Result of batch 3:
+INFO  [19:56:22.940] [bbotk]         cp maxdepth minbucket classif.ce warnings errors runtime_learners
+INFO  [19:56:22.940] [bbotk]  -2.616433        3         1  0.3704694        0      0             0.01
+INFO  [19:56:22.940] [bbotk]                                 uhash
+INFO  [19:56:22.940] [bbotk]  128d6bbc-2e43-489b-ab89-0b0ad13ab359
+INFO  [19:56:22.976] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:23.004] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:23.030] [mlr3] Applying learner 'classif.rpart' on task 'd_t' (iter 1/3)
+INFO  [19:56:23.068] [mlr3] Applying learner 'classif.rpart' on task 'd_t' (iter 2/3)
+INFO  [19:56:23.117] [mlr3] Applying learner 'classif.rpart' on task 'd_t' (iter 3/3)
+INFO  [19:56:23.162] [mlr3] Finished benchmark
+INFO  [19:56:23.280] [bbotk] Result of batch 4:
+INFO  [19:56:23.287] [bbotk]         cp maxdepth minbucket classif.ce warnings errors runtime_learners
+INFO  [19:56:23.287] [bbotk]  -3.509778        6         3  0.4393939        0      0             0.01
+INFO  [19:56:23.287] [bbotk]                                 uhash
+INFO  [19:56:23.287] [bbotk]  7fe54e23-e894-455d-ad21-f23890cb3996
+INFO  [19:56:23.423] [bbotk] Finished optimizing after 4 evaluation(s)
+INFO  [19:56:23.428] [bbotk] Result:
+INFO  [19:56:23.435] [bbotk]         cp maxdepth minbucket learner_param_vals  x_domain classif.ce
+INFO  [19:56:23.435] [bbotk]      <num>    <int>    <char>             <list>    <list>      <num>
+INFO  [19:56:23.435] [bbotk]  -2.492216        4         5          <list[4]> <list[3]>  0.3704694
+[PASS] 璋冨弬妗ｆ路dtype 涓?trafo 灏哄害 (2.7s)
+[PASS] learner$deadline (0.1s)
+[PASS] 瀛楀吀鎺㈤拡路鏂囨。鐐瑰悕瀵硅薄 (1.4s)
+Registered S3 method overwritten by 'butcher':
+  method                 from    
+  as.character.dev_topic generics
+[PASS] PipeOp 绫诲瀷鍓嶇疆路splines/boxcox/subsample/select (1.6s)
+[PASS] selector路integer 涓?affected_cols 璇箟 (0.3s)
+INFO  [19:56:28.484] [bbotk] Starting to optimize 3 parameter(s) with '<OptimizerBatchRandomSearch>' and '<TerminatorEvals> [n_evals=2, k=0]'
+INFO  [19:56:28.580] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:28.596] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:28.627] [mlr3] Applying learner 'classif.ranger' on task 'd_g' (iter 1/3)
+INFO  [19:56:28.711] [mlr3] Applying learner 'classif.ranger' on task 'd_g' (iter 2/3)
+INFO  [19:56:28.804] [mlr3] Applying learner 'classif.ranger' on task 'd_g' (iter 3/3)
+INFO  [19:56:28.862] [mlr3] Finished benchmark
+INFO  [19:56:28.963] [bbotk] Result of batch 1:
+INFO  [19:56:28.970] [bbotk]  mtry.ratio replace sample.fraction classif.ce warnings errors runtime_learners
+INFO  [19:56:28.970] [bbotk]   0.7975812    TRUE       0.6409278        0.4        0      0             0.12
+INFO  [19:56:28.970] [bbotk]                                 uhash
+INFO  [19:56:28.970] [bbotk]  4d024a5a-2556-4c99-beda-dfc9dc4c00fd
+INFO  [19:56:29.015] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:29.050] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:29.089] [mlr3] Applying learner 'classif.ranger' on task 'd_g' (iter 1/3)
+INFO  [19:56:29.197] [mlr3] Applying learner 'classif.ranger' on task 'd_g' (iter 2/3)
+INFO  [19:56:29.264] [mlr3] Applying learner 'classif.ranger' on task 'd_g' (iter 3/3)
+INFO  [19:56:29.353] [mlr3] Finished benchmark
+INFO  [19:56:29.506] [bbotk] Result of batch 2:
+INFO  [19:56:29.513] [bbotk]  mtry.ratio replace sample.fraction classif.ce warnings errors runtime_learners
+INFO  [19:56:29.513] [bbotk]  0.06681661   FALSE       0.3555814  0.4083333        0      0             0.13
+INFO  [19:56:29.513] [bbotk]                                 uhash
+INFO  [19:56:29.513] [bbotk]  ca8df003-8e8b-434f-b444-a84f4fd597ea
+INFO  [19:56:29.634] [bbotk] Finished optimizing after 2 evaluation(s)
+INFO  [19:56:29.637] [bbotk] Result:
+INFO  [19:56:29.644] [bbotk]  mtry.ratio replace sample.fraction learner_param_vals  x_domain classif.ce
+INFO  [19:56:29.644] [bbotk]       <num>  <lgcl>           <num>             <list>    <list>      <num>
+INFO  [19:56:29.644] [bbotk]   0.7975812    TRUE       0.6409278          <list[5]> <list[3]>        0.4
+INFO  [19:56:31.492] [bbotk] Starting to optimize 4 parameter(s) with '<OptimizerBatchRandomSearch>' and '<TerminatorEvals> [n_evals=1, k=0]'
+INFO  [19:56:31.655] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:31.695] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:31.734] [mlr3] Applying learner 'classif.svm' on task 'd_g' (iter 1/3)
+INFO  [19:56:31.793] [mlr3] Applying learner 'classif.svm' on task 'd_g' (iter 2/3)
+INFO  [19:56:31.851] [mlr3] Applying learner 'classif.svm' on task 'd_g' (iter 3/3)
+INFO  [19:56:31.917] [mlr3] Finished benchmark
+INFO  [19:56:32.070] [bbotk] Result of batch 1:
+INFO  [19:56:32.077] [bbotk]       cost degree    gamma kernel classif.ce warnings errors runtime_learners
+INFO  [19:56:32.077] [bbotk]  -4.971498     NA 1.085714 radial  0.5166667        0      0             0.07
+INFO  [19:56:32.077] [bbotk]                                 uhash
+INFO  [19:56:32.077] [bbotk]  9d5ee03e-02c3-481e-a67c-4fb9a5e2166a
+INFO  [19:56:32.286] [bbotk] Finished optimizing after 1 evaluation(s)
+INFO  [19:56:32.290] [bbotk] Result:
+INFO  [19:56:32.295] [bbotk]       cost degree    gamma kernel learner_param_vals  x_domain classif.ce
+INFO  [19:56:32.295] [bbotk]      <num>  <int>    <num> <char>             <list>    <list>      <num>
+INFO  [19:56:32.295] [bbotk]  -4.971498     NA 1.085714 radial          <list[3]> <list[3]>  0.5166667
+INFO  [19:56:34.143] [bbotk] Starting to optimize 3 parameter(s) with '<OptimizerBatchRandomSearch>' and '<TerminatorEvals> [n_evals=1, k=0]'
+INFO  [19:56:34.260] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:34.299] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:34.334] [mlr3] Applying learner 'classif.svm' on task 'd_g' (iter 1/3)
+INFO  [19:56:34.398] [mlr3] Applying learner 'classif.svm' on task 'd_g' (iter 2/3)
+INFO  [19:56:34.463] [mlr3] Applying learner 'classif.svm' on task 'd_g' (iter 3/3)
+INFO  [19:56:34.526] [mlr3] Finished benchmark
+INFO  [19:56:34.670] [bbotk] Result of batch 1:
+INFO  [19:56:34.678] [bbotk]  degree     gamma     kernel classif.ce warnings errors runtime_learners
+INFO  [19:56:34.678] [bbotk]       3 -3.920029 polynomial  0.5666667        0      0              0.1
+INFO  [19:56:34.678] [bbotk]                                 uhash
+INFO  [19:56:34.678] [bbotk]  09fa6255-e95b-4bc2-ba59-59795ba40074
+INFO  [19:56:34.862] [bbotk] Finished optimizing after 1 evaluation(s)
+INFO  [19:56:34.865] [bbotk] Result:
+INFO  [19:56:34.870] [bbotk]  degree     gamma     kernel learner_param_vals  x_domain classif.ce
+INFO  [19:56:34.870] [bbotk]   <int>     <num>     <char>             <list>    <list>      <num>
+INFO  [19:56:34.870] [bbotk]       3 -3.920029 polynomial          <list[5]> <list[3]>  0.5666667
+INFO  [19:56:36.334] [bbotk] Starting to optimize 3 parameter(s) with '<OptimizerBatchRandomSearch>' and '<TerminatorEvals> [n_evals=2, k=0]'
+INFO  [19:56:36.415] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:36.446] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:36.482] [mlr3] Applying learner 'encode.pca.classif.svm' on task 'd_g' (iter 1/3)
+INFO  [19:56:37.048] [mlr3] Applying learner 'encode.pca.classif.svm' on task 'd_g' (iter 2/3)
+INFO  [19:56:37.626] [mlr3] Applying learner 'encode.pca.classif.svm' on task 'd_g' (iter 3/3)
+INFO  [19:56:38.140] [mlr3] Finished benchmark
+INFO  [19:56:38.261] [bbotk] Result of batch 1:
+INFO  [19:56:38.268] [bbotk]  encode.method pca.rank. classif.svm.cost classif.ce warnings errors
+INFO  [19:56:38.268] [bbotk]        one-hot         3         3.007823       0.45        0      0
+INFO  [19:56:38.268] [bbotk]  runtime_learners                                uhash
+INFO  [19:56:38.268] [bbotk]              1.54 8889c6f3-eac1-4672-97c4-0f889dc2a770
+INFO  [19:56:38.310] [bbotk] Evaluating 1 configuration(s)
+INFO  [19:56:38.338] [mlr3] Running benchmark with 3 resampling iterations
+INFO  [19:56:38.366] [mlr3] Applying learner 'encode.pca.classif.svm' on task 'd_g' (iter 1/3)
+INFO  [19:56:38.973] [mlr3] Applying learner 'encode.pca.classif.svm' on task 'd_g' (iter 2/3)
+INFO  [19:56:39.593] [mlr3] Applying learner 'encode.pca.classif.svm' on task 'd_g' (iter 3/3)
+INFO  [19:56:40.175] [mlr3] Finished benchmark
+INFO  [19:56:40.313] [bbotk] Result of batch 2:
+INFO  [19:56:40.322] [bbotk]  encode.method pca.rank. classif.svm.cost classif.ce warnings errors
+INFO  [19:56:40.322] [bbotk]        one-hot         5         3.534774  0.4166667        0      0
+INFO  [19:56:40.322] [bbotk]  runtime_learners                                uhash
+INFO  [19:56:40.322] [bbotk]              1.69 97efa8bf-29b8-4c87-b6d2-d3ff3041a858
+INFO  [19:56:40.452] [bbotk] Finished optimizing after 2 evaluation(s)
+INFO  [19:56:40.455] [bbotk] Result:
+INFO  [19:56:40.460] [bbotk]  encode.method pca.rank. classif.svm.cost learner_param_vals  x_domain
+INFO  [19:56:40.460] [bbotk]         <char>     <int>            <num>             <list>    <list>
+INFO  [19:56:40.460] [bbotk]        one-hot         5         3.534774          <list[5]> <list[3]>
+INFO  [19:56:40.460] [bbotk]  classif.ce
+INFO  [19:56:40.460] [bbotk]       <num>
+INFO  [19:56:40.460] [bbotk]   0.4166667
+[PASS] 鏂囨。绛惧悕路鍥捐皟鍙備笌 lts 棰勭疆绌洪棿 (13.9s)
+INFO  [19:56:40.955] [mlr3] Resampling 'bootstrap' is being instantiated on task 'd_b'
+INFO  [19:56:40.982] [mlr3] Applying learner 'classif.rpart' on task 'd_b' (iter 1/3)
+INFO  [19:56:41.034] [mlr3] Applying learner 'classif.rpart' on task 'd_b' (iter 2/3)
+INFO  [19:56:41.083] [mlr3] Applying learner 'classif.rpart' on task 'd_b' (iter 3/3)
+INFO  [19:56:41.325] [mlr3] Resampling 'bootstrap' is being instantiated on task 'd_b'
+INFO  [19:56:41.350] [mlr3] Applying learner 'scale.classif.rpart' on task 'd_b' (iter 1/3)
+INFO  [19:56:41.435] [mlr3] Applying learner 'scale.classif.rpart' on task 'd_b' (iter 2/3)
+INFO  [19:56:41.498] [mlr3] Applying learner 'scale.classif.rpart' on task 'd_b' (iter 3/3)
+Warning: Caught simpleError. Canceling all iterations ...
+INFO  [19:56:41.902] [mlr3] Resampling 'bootstrap' is being instantiated on task 'd_b'
+INFO  [19:56:41.941] [mlr3] Applying learner 'scale.classif.rpart' on task 'd_b' (iter 1/5)
+ERROR [19:56:42.048] [mlr3] train: Assertion on 'data[[primary_key]]' failed: Contains duplicated values, position 2.
+This happened in PipeOp scale's $train()
+INFO  [19:56:42.059] [mlr3] Learner 'scale.classif.rpart' on task 'd_b' failed to train a model {learner: <GraphLearner/Learner/R6>, messages: ()}
+INFO  [19:56:42.071] [mlr3] Calling train method of fallback 'classif.featureless' on task 'd_b' with 200 observations {learner: <LearnerClassifFeatureless/LearnerClassif/Learner/R6>}
+INFO  [19:56:42.141] [mlr3] Applying learner 'scale.classif.rpart' on task 'd_b' (iter 2/5)
+ERROR [19:56:42.218] [mlr3] train: Assertion on 'data[[primary_key]]' failed: Contains duplicated values, position 3.
+This happened in PipeOp scale's $train()
+INFO  [19:56:42.239] [mlr3] Learner 'scale.classif.rpart' on task 'd_b' failed to train a model {learner: <GraphLearner/Learner/R6>, messages: ()}
+INFO  [19:56:42.251] [mlr3] Calling train method of fallback 'classif.featureless' on task 'd_b' with 200 observations {learner: <LearnerClassifFeatureless/LearnerClassif/Learner/R6>}
+INFO  [19:56:42.346] [mlr3] Applying learner 'scale.classif.rpart' on task 'd_b' (iter 3/5)
+ERROR [19:56:42.430] [mlr3] train: Assertion on 'data[[primary_key]]' failed: Contains duplicated values, position 2.
+This happened in PipeOp scale's $train()
+INFO  [19:56:42.439] [mlr3] Learner 'scale.classif.rpart' on task 'd_b' failed to train a model {learner: <GraphLearner/Learner/R6>, messages: ()}
+INFO  [19:56:42.448] [mlr3] Calling train method of fallback 'classif.featureless' on task 'd_b' with 200 observations {learner: <LearnerClassifFeatureless/LearnerClassif/Learner/R6>}
+INFO  [19:56:42.560] [mlr3] Applying learner 'scale.classif.rpart' on task 'd_b' (iter 4/5)
+ERROR [19:56:42.647] [mlr3] train: Assertion on 'data[[primary_key]]' failed: Contains duplicated values, position 2.
+This happened in PipeOp scale's $train()
+INFO  [19:56:42.657] [mlr3] Learner 'scale.classif.rpart' on task 'd_b' failed to train a model {learner: <GraphLearner/Learner/R6>, messages: ()}
+INFO  [19:56:42.667] [mlr3] Calling train method of fallback 'classif.featureless' on task 'd_b' with 200 observations {learner: <LearnerClassifFeatureless/LearnerClassif/Learner/R6>}
+INFO  [19:56:42.748] [mlr3] Applying learner 'scale.classif.rpart' on task 'd_b' (iter 5/5)
+ERROR [19:56:42.863] [mlr3] train: Assertion on 'data[[primary_key]]' failed: Contains duplicated values, position 6.
+This happened in PipeOp scale's $train()
+INFO  [19:56:42.871] [mlr3] Learner 'scale.classif.rpart' on task 'd_b' failed to train a model {learner: <GraphLearner/Learner/R6>, messages: ()}
+INFO  [19:56:42.876] [mlr3] Calling train method of fallback 'classif.featureless' on task 'd_b' with 200 observations {learner: <LearnerClassifFeatureless/LearnerClassif/Learner/R6>}
+[PASS] 閲嶆娊鏍峰疄娴嬪潙路bootstrap/灏佽鍏滃簳/鍒嗗眰/绾跨▼ (2.8s)
+INFO  [19:56:44.914] [mlr3] Resampling 'cv' is being instantiated on task 'd_sp'
+INFO  [19:56:44.945] [mlr3] Applying learner 'classif.xgboost' on task 'd_sp' (iter 1/3)
+INFO  [19:56:45.064] [mlr3] Applying learner 'classif.xgboost' on task 'd_sp' (iter 2/3)
+INFO  [19:56:45.167] [mlr3] Applying learner 'classif.xgboost' on task 'd_sp' (iter 3/3)
+[PASS] 鏂囨。鍙ｅ緞路spatialsign 褰掑睘 / 渚濊禆鍖?/ validate='test' 闈欓粯 (1.7s)
+[PASS] 鏂囨。鍙ｅ緞路robustify 鍥捐闂櫒 / 鍙傛暟 id / 瑕嗙洊榛樿鍊?(3.6s)
+
+=== 姹囨€伙細20/20 PASS ===
+--- 鑰楁椂锛氬悎璁?75s / 浼氳瘽澧欓挓 77s | 鏈€鎱?5 渚嬶細benchmark 璋冧紭鍚庢瘮杈?14.7s, 鏂囨。绛惧悕路鍥捐皟鍙備笌 lts 棰勭疆绌洪棿=13.9s, ppl(branch) 鍒嗘敮璋冨弬=10.6s, 鏈€灏忛鏋堵峰垎绫?7.6s, 鏈€灏忛鏋堵峰洖褰?6.3s
+
+$ Rscript scripts/check_answer_api.R SKILL.md "references/*.md" "references/feature-engineering/*.md" "evals/outputs/eval-*.md" "examples/replay/skilled-*.md"
+
+== SKILL.md ==
+  灏忚: 閿瓨鍦?18 | 骞昏 0
+
+== advanced-workflows.md ==
+  灏忚: 閿瓨鍦?19 | 骞昏 0
+
+== data-spending.md ==
+  (鏈壘鍒板瓧鍏歌皟鐢?
+
+== evaluation.md ==
+  灏忚: 閿瓨鍦?9 | 骞昏 0
+
+== feature-engineering.md ==
+  灏忚: 閿瓨鍦?13 | 骞昏 0
+
+== resampling.md ==
+  灏忚: 閿瓨鍦?11 | 骞昏 0
+
+== tuning.md ==
+  灏忚: 閿瓨鍦?10 | 骞昏 0
+
+== categorical.md ==
+  灏忚: 閿瓨鍦?6 | 骞昏 0
+
+== correlation.md ==
+  灏忚: 閿瓨鍦?8 | 骞昏 0
+
+== missing-data.md ==
+  灏忚: 閿瓨鍦?14 | 骞昏 0
+
+== numeric.md ==
+  灏忚: 閿瓨鍦?9 | 骞昏 0
+
+== eval-1.md ==
+  灏忚: 閿瓨鍦?7 | 骞昏 0
+
+== eval-2.md ==
+  灏忚: 閿瓨鍦?5 | 骞昏 0
+
+== eval-3.md ==
+  灏忚: 閿瓨鍦?4 | 骞昏 0
+
+== eval-4.md ==
+  灏忚: 閿瓨鍦?5 | 骞昏 0
+
+== eval-5.md ==
+  灏忚: 閿瓨鍦?7 | 骞昏 0
+
+== eval-6.md ==
+  灏忚: 閿瓨鍦?4 | 骞昏 0
+
+== skilled-eval-1.md ==
+  灏忚: 閿瓨鍦?9 | 骞昏 0
+
+== skilled-eval-3.md ==
+  灏忚: 閿瓨鍦?10 | 骞昏 0
+
+=== 姹囨€伙細168 涓敮涓€瀛楀吀閿?| 骞昏 0 | 瀛樺湪 168 ===
+
+$ node scripts/run_evals.mjs
+== eval-1 鏍囧噯浜屽垎绫诲叏娴佺▼ (eval-1.md) ==
+  [PASS] no_common_seed
+  [PASS] no_dev_testset_use
+  [PASS] r_coding_style
+  [PASS] pipeop_pipe_syntax
+  [PASS] parallel_resource_checked
+  [PASS] visualizes_evaluation
+  灏忚: 6 PASS, 0 FAIL, 0 WARN
+
+== eval-2 绾㈢嚎鎷︽埅锛氭祴璇曢泦鐩磋瘎 + 鎵嬪姩棰勫鐞?(eval-2.md) ==
+  [PASS] refuses_violation
+  [PASS] no_dev_testset_use
+  [PASS] pipeop_pipe_syntax
+  [PASS] no_common_seed
+  灏忚: 4 PASS, 0 FAIL, 0 WARN
+
+== eval-3 鏃堕棿搴忓垪鍒掑垎涓庨噸鎶芥牱 (eval-3.md) ==
+  [PASS] time_aware_resampling
+  [PASS] no_common_seed
+  [PASS] r_coding_style
+  灏忚: 3 PASS, 0 FAIL, 0 WARN
+
+== eval-4 涓嶅钩琛″垎绫伙細SMOTE 鍦ㄥ浘鍐?+ 璋冧紭 (eval-4.md) ==
+  [PASS] smote_in_graph
+  [PASS] no_common_seed
+  [PASS] r_coding_style
+  [PASS] no_dev_testset_use
+  灏忚: 4 PASS, 0 FAIL, 0 WARN
+
+== eval-5 鍥炲綊 + 楂樺熀鏁板垎绫诲彉閲?+ 鍋忔枩鏁板€?(eval-5.md) ==
+  [PASS] no_common_seed
+  [PASS] no_dev_testset_use
+  [PASS] r_coding_style
+  [PASS] pipeop_pipe_syntax
+  [PASS] parallel_resource_checked
+  [PASS] visualizes_evaluation
+  灏忚: 6 PASS, 0 FAIL, 0 WARN
+
+== eval-6 姒傚康闄烽槺锛氬祵濂楅噸鎶芥牱鐨勭敤閫?(eval-6.md) ==
+  [PASS] explains_nested_purpose
+  [PASS] no_common_seed
+  [PASS] r_coding_style
+  灏忚: 3 PASS, 0 FAIL, 0 WARN
+
+== 姹囨€伙細26 PASS, 0 FAIL, 0 WARN锛堝叡 6 涓洖绛旓級==

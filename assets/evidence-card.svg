@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="844" viewBox="0 0 1080 844" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15">
+  <rect width="1080" height="844" rx="12" fill="#0d1117"/>
+  <rect width="1080" height="44" rx="12" fill="#161b22"/>
+  <rect y="32" width="1080" height="12" fill="#161b22"/>
+  <circle cx="28" cy="22" r="7" fill="#ff5f56"/>
+  <circle cx="52" cy="22" r="7" fill="#ffbd2e"/>
+  <circle cx="76" cy="22" r="7" fill="#27c93f"/>
+  <text x="540" y="27" fill="#8b949e" text-anchor="middle" font-size="13">ml-mlr3 · gates (real run)</text>
+  <text x="26" y="86" fill="#c9d1d9">﻿# ml-mlr3 · 门禁实跑转录（本机 Windows / R 4.6.1）</text>
+  <text x="26" y="108" fill="#7ee787">$ Rscript scripts/verify_examples.R</text>
+  <text x="26" y="130" fill="#79c0ff">[OK] 鐗堟湰鑷唇 v2.4.0锛圫KILL.md / README.md / CHANGELOG.md 涓夊涓€鑷达級</text>
+  <text x="26" y="152" fill="#c9d1d9">INFO  [19:55:35.380] [mlr3] Resampling 'cv' is being instantiated on task 'df_bin'</text>
+  <text x="26" y="174" fill="#c9d1d9">INFO  [19:55:35.715] [mlr3] Applying learner 'removeconstants_prerobustify.char_to_fct.POSIXct_to_dbl.ord_to_fct.imputehist.missind.impute_logicals.featureunion_robustify.imputeoor.fixfactors.imputesample.collapsefactors.encode.removeconstants_postrobustify.classif.rpart' on task 'df_bin' (iter 1/3)</text>
+  <text x="26" y="196" fill="#c9d1d9">INFO  [19:55:37.374] [mlr3] Applying learner 'removeconstants_prerobustify.char_to_fct.POSIXct_to_dbl.ord_to_fct.imputehist.missind.impute_logicals.featureunion_robustify.imputeoor.fixfactors.imputesample.collapsefactors.encode.removeconstants_postrobustify.classif.rpart' on task 'df_bin' (iter 2/3)</text>
+  <text x="26" y="218" fill="#c9d1d9">INFO  [19:55:39.022] [mlr3] Applying learner 'removeconstants_prerobustify.char_to_fct.POSIXct_to_dbl.ord_to_fct.imputehist.missind.impute_logicals.featureunion_robustify.imputeoor.fixfactors.imputesample.collapsefactors.encode.removeconstants_postrobustify.classif.rpart' on task 'df_bin' (iter 3/3)</text>
+  <text x="26" y="240" fill="#7ee787">[PASS] 鏈€灏忛鏋堵峰垎绫?(7.6s)</text>
+  <text x="26" y="262" fill="#c9d1d9">INFO  [19:55:42.684] [mlr3] Resampling 'cv' is being instantiated on task 'mtcars'</text>
+  <text x="26" y="284" fill="#c9d1d9">INFO  [19:55:42.723] [mlr3] Applying learner 'removeconstants_prerobustify.char_to_fct.POSIXct_to_dbl.ord_to_fct.imputehist.missind.impute_logicals.featureunion_robustify.imputeoor.fixfactors.imputesample.collapsefactors.encode.removeconstants_postrobustify.regr.rpart' on task 'mtcars' (iter 1/3)</text>
+  <text x="26" y="306" fill="#c9d1d9">INFO  [19:55:44.302] [mlr3] Applying learner 'removeconstants_prerobustify.char_to_fct.POSIXct_to_dbl.ord_to_fct.imputehist.missind.impute_logicals.featureunion_robustify.imputeoor.fixfactors.imputesample.collapsefactors.encode.removeconstants_postrobustify.regr.rpart' on task 'mtcars' (iter 2/3)</text>
+  <text x="26" y="328" fill="#c9d1d9">INFO  [19:55:45.899] [mlr3] Applying learner 'removeconstants_prerobustify.char_to_fct.POSIXct_to_dbl.ord_to_fct.imputehist.missind.impute_logicals.featureunion_robustify.imputeoor.fixfactors.imputesample.collapsefactors.encode.removeconstants_postrobustify.regr.rpart' on task 'mtcars' (iter 3/3)</text>
+  <text x="26" y="350" fill="#7ee787">[PASS] 鏈€灏忛鏋堵峰洖褰?(6.3s)</text>
+  <text x="26" y="372" fill="#c9d1d9">INFO  [19:55:48.854] [bbotk] Starting to optimize 2 parameter(s) with '&lt;OptimizerBatchRandomSearch&gt;' and '&lt;TerminatorEvals&gt; [n_evals=5, k=0]'</text>
+  <text x="26" y="394" fill="#c9d1d9">INFO  [19:55:48.926] [bbotk] Evaluating 1 configuration(s)</text>
+  <text x="26" y="416" fill="#c9d1d9">INFO  [19:55:48.963] [mlr3] Running benchmark with 3 resampling iterations</text>
+  <text x="26" y="438" fill="#c9d1d9">INFO  [19:55:48.989] [mlr3] Applying learner 'classif.svm' on task 'df_bin' (iter 1/3)</text>
+  <text x="26" y="460" fill="#c9d1d9">INFO  [19:55:49.078] [mlr3] Applying learner 'classif.svm' on task 'df_bin' (iter 2/3)</text>
+  <text x="26" y="482" fill="#c9d1d9">INFO  [19:55:49.141] [mlr3] Applying learner 'classif.svm' on task 'df_bin' (iter 3/3)</text>
+  <text x="26" y="504" fill="#c9d1d9">INFO  [19:55:49.193] [mlr3] Finished benchmark</text>
+  <text x="26" y="526" fill="#c9d1d9">INFO  [19:55:49.348] [bbotk] Result of batch 1:</text>
+  <text x="26" y="548" fill="#c9d1d9">INFO  [19:55:49.370] [bbotk]       cost     gamma classif.auc warnings errors runtime_learners</text>
+  <text x="26" y="570" fill="#c9d1d9">INFO  [19:55:49.370] [bbotk]  -1.052076 -2.382155           1        0      0             0.11</text>
+  <text x="26" y="592" fill="#c9d1d9">INFO  [19:55:49.370] [bbotk]                                 uhash</text>
+  <text x="26" y="614" fill="#c9d1d9">INFO  [19:55:49.370] [bbotk]  12cf4ef2-c0e7-4d06-907f-4830edb42ddf</text>
+  <text x="26" y="636" fill="#c9d1d9">INFO  [19:55:49.399] [bbotk] Evaluating 1 configuration(s)</text>
+  <text x="26" y="658" fill="#c9d1d9">INFO  [19:55:49.428] [mlr3] Running benchmark with 3 resampling iterations</text>
+  <text x="26" y="680" fill="#c9d1d9">INFO  [19:55:49.458] [mlr3] Applying learner 'classif.svm' on task 'df_bin' (iter 1/3)</text>
+  <text x="26" y="702" fill="#c9d1d9">INFO  [19:55:49.518] [mlr3] Applying learner 'classif.svm' on task 'df_bin' (iter 2/3)</text>
+  <text x="26" y="724" fill="#c9d1d9">INFO  [19:55:49.583] [mlr3] Applying learner 'classif.svm' on task 'df_bin' (iter 3/3)</text>
+  <text x="26" y="746" fill="#c9d1d9">INFO  [19:55:49.643] [mlr3] Finished benchmark</text>
+  <text x="26" y="768" fill="#c9d1d9">INFO  [19:55:49.793] [bbotk] Result of batch 2:</text>
+  <text x="26" y="790" fill="#c9d1d9">INFO  [19:55:49.801] [bbotk]       cost     gamma classif.auc warnings errors runtime_learners</text>
+  <text x="26" y="812" fill="#c9d1d9">INFO  [19:55:49.801] [bbotk]  -2.480363 -5.148596   0.3333333        0      0              0.1</text>
+</svg>
