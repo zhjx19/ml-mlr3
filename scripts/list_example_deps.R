@@ -46,14 +46,22 @@ anchor_hard = c("mlr3verse", "mlr3learners")
 anchor_soft = "mlr3extralearners"
 anchor = c(anchor_hard, anchor_soft)
 # 只追加到 repos 末位：CRAN / RSPM 供得上的包照旧走原通道，只有它们没有的才落到 universe。
-extra_repos = c(mlorg = "https://mlr-org.r-universe.dev")
+# 但先把 @CRAN@ 占位落实成真实 URL——非交互的 CI 里带着占位符去问镜像会当场卡住/乱挑，
+# 而这里恰恰是"本地默认 @CRAN@、CI 是 RSPM"两边都要跑得通的脚本。
+universe_repos = c(mlorg = "https://mlr-org.r-universe.dev")
+base_repos = local({
+  r = getOption("repos")
+  if (any(grepl("@CRAN@", r))) r[grepl("@CRAN@", r)] = "https://cloud.r-project.org"
+  r
+})
+repos_all = c(base_repos, universe_repos)
 installed = \(p) vapply(p, requireNamespace, logical(1), quietly = TRUE)
 
 if (flag("--install")) {
   a_miss = anchor[!installed(anchor)]
   if (length(a_miss)) {
     cat("=== 先装锚点包（字典提供方）:", paste(a_miss, collapse = ", "), "===\n")
-    install.packages(a_miss, repos = c(getOption("repos"), extra_repos), Ncpus = 4L)
+    install.packages(a_miss, repos = repos_all, Ncpus = 4L)
     a_hard = anchor_hard[!installed(anchor_hard)]
     if (length(a_hard)) {
       cat(sprintf("::error::硬锚点安装失败，字典无法枚举: %s\n", paste(a_hard, collapse = ", ")))
@@ -144,7 +152,7 @@ if (flag("--print-list")) {
 
 cat("=== 扫描对象 ===\n"); cat(paste(" ", src_files), sep = "\n")
 cat(sprintf("\n=== 锚点包（字典提供方，无条件先装）===\n  硬（CRAN 可得）: %s\n  软（CRAN 无，走 %s）: %s%s\n",
-  paste(anchor_hard, collapse = "  "), extra_repos[1], anchor_soft,
+  paste(anchor_hard, collapse = "  "), universe_repos[1], anchor_soft,
   if (length(anchor_opt)) "  ← 本机未就位，相关键记 SKIP" else ""))
 cat("\n=== 构造函数行上的键 -> 后备包 ===\n")
 for (dn in names(dict_detail)) {
@@ -168,21 +176,21 @@ cat(sprintf("\nhard = %d | opt = %d | 本机缺失 = %s\n", length(hard), length
 # 用法：--mirror [--repos <CRAN 镜像 URL>]（本机默认 @CRAN@ 会去撞 cloud.r-project.org，
 # 国内建议显式给镜像；CI 上不给也一样，runner 就贴在 CRAN / RSPM 旁边）。
 if (flag("--mirror")) {
-  base_repos = val("--repos", "https://cloud.r-project.org")
+  mirror_base = val("--repos", base_repos[[1]])
   idx = \(u) tryCatch(rownames(available.packages(repos = u, type = "source")), error = \(e) NULL)
   cat("\n=== 镜像可得性预飞 ===\n")
-  av_base = idx(base_repos)
-  av_uni = idx(extra_repos[[1]])
+  av_base = idx(mirror_base)
+  av_uni = idx(universe_repos[[1]])
   if (is.null(av_base) && is.null(av_uni)) {
-    cat(sprintf("::warning::两个仓库索引都取不到（%s / %s），本轮不判可得性\n", base_repos, extra_repos[[1]]))
+    cat(sprintf("::warning::两个仓库索引都取不到（%s / %s），本轮不判可得性\n", mirror_base, universe_repos[[1]]))
     quit(status = 0L)
   }
-  cat(sprintf("  索引规模：主仓库 %s | mlorg r-universe %s\n",
-    if (is.null(av_base)) "取不到" else length(av_base),
-    if (is.null(av_uni)) "取不到" else length(av_uni)))
+  cat(sprintf("  索引规模：主仓库 %s → %s | mlorg r-universe → %s\n", mirror_base,
+    if (is.null(av_base)) "取不到" else sprintf("%d 个包", length(av_base)),
+    if (is.null(av_uni)) "取不到" else sprintf("%d 个包", length(av_uni))))
   nowhere = need[!(need %in% av_base) & !(need %in% av_uni)]
   for (p in need) {
-    from = if (p %in% av_base) base_repos else if (p %in% av_uni) extra_repos[[1]] else "两边都没有"
+    from = if (p %in% av_base) mirror_base else if (p %in% av_uni) universe_repos[[1]] else "两边都没有"
     cat(sprintf("  %-22s <- %s\n", p, from))
   }
   only_uni = need[!(need %in% av_base) & (need %in% av_uni)]
@@ -191,7 +199,7 @@ if (flag("--mirror")) {
   if (length(only_uni)) {
     # R 的 Windows 二进制目录按 "主.次" 分（4.6.1 → 4.6），R.version$minor 是 "6.1"，只取第一段。
     # 这个仓库的二进制索引直接放在 contrib 层（没有 src/contrib 子目录），所以读文件而不是 available.packages。
-    win_url = sprintf("%s/bin/windows/contrib/%s.%s/PACKAGES", extra_repos[[1]], R.version$major,
+    win_url = sprintf("%s/bin/windows/contrib/%s.%s/PACKAGES", universe_repos[[1]], R.version$major,
       sub("\\..*$", "", R.version$minor))
     win_txt = tryCatch(readLines(win_url, warn = FALSE), error = \(e) character(0))
     win_pkgs = sub("^Package: ", "", grep("^Package: ", win_txt, value = TRUE))
@@ -211,7 +219,7 @@ if (flag("--install")) {
   # （install.packages 对已装包会尝试升级，可能把刚验证过的环境换掉）
   todo = need[!installed(need)]
   cat("\n=== 安装（缺失 ", length(todo), "/", length(need), " 个）===\n")
-  if (length(todo)) install.packages(todo, repos = c(getOption("repos"), extra_repos), Ncpus = 4L)
+  if (length(todo)) install.packages(todo, repos = repos_all, Ncpus = 4L)
 
   still = need[!installed(need)]
   # 装完再认一次软锚点：CI 上它多半是这一步才从 r-universe 落下来的
@@ -238,7 +246,7 @@ if (flag("--install")) {
     # 软锚点的来源必须留痕：CI 上 mlr3extralearners 只可能从 r-universe 落下来，
     # 没有这条，"它装了"和"它从哪装的"就又被当成同一件事。
     sprintf("::notice::repos = %s | soft_anchor %s = %s",
-      paste(names(getOption("repos")), collapse = "+"), anchor_soft,
+      paste(sprintf("%s=%s", names(repos_all), repos_all), collapse = " "), anchor_soft,
       if (installed(anchor_soft)) as.character(packageVersion(anchor_soft)) else "MISSING(相关键 SKIP)")
   ), collapse = "\n"), "\n")
 
