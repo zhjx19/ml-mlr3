@@ -2,6 +2,7 @@
 
 > *「模型代码谁都会写，难的是全程不偷偷摸一下测试集。」*
 
+[![version](https://img.shields.io/github/v/tag/zhjx19/ml-mlr3?label=version)](CHANGELOG.md)
 [![Agent Skills](https://img.shields.io/badge/Agent%20Skills-ml--mlr3-blueviolet)](SKILL.md)
 [![gates](https://github.com/zhjx19/ml-mlr3/actions/workflows/gates.yml/badge.svg)](https://github.com/zhjx19/ml-mlr3/actions/workflows/gates.yml)
 [![Live Verify](https://img.shields.io/badge/verify_examples.R-20%2F20%20PASS-brightgreen)](#验证与测试)
@@ -15,7 +16,7 @@
 
 **30 秒看证据**：两个建模 prompt，各写一遍"无 skill 的典型答案"和"按本 skill 的答案"，再用两把尺子量。典型答案一侧：**6 项纪律违规全 FAIL**（常见种子 `set.seed(42)`、开发期就把测试集切出来直评、把随机 CV 当时序重抽样）+ **8 个字典里根本不存在的键**（`po("imputehci")`、`rsmp("cs")`、`tsk("classif", formula=)`、`msr("classif.kappa")` 等，照抄必报错）。按 skill 写的一侧：**9/9 断言 PASS，0 幻觉键**。对照原文、逐条输出与重跑命令见 **[examples/EXAMPLE.md](examples/EXAMPLE.md)**。
 
-[它解决什么问题](#它解决什么问题) · [它会交付什么](#它会交付什么) · [快速开始](#快速开始) · [触发方式](#触发方式) · [安全边界](#安全边界) · [验证与测试](#验证与测试)
+[它解决什么问题](#它解决什么问题) · [它会交付什么](#它会交付什么) · [快速开始](#快速开始) · [触发方式](#触发方式) · [安全边界](#安全边界) · [验证与测试](#验证与测试) · [版本与更新历史](#版本与更新历史)
 
 ---
 
@@ -152,25 +153,20 @@ Rscript scripts/verify_examples.R
 === 汇总：20/20 PASS ===
 ```
 
-**CI 门禁 ≠ 免跑凭证——它自己已经被量过四次了。** 首次上线（commit `c59e384`）就是**双平台全红**，而本机同一天 20/20 PASS。第一次对账出的根因不在示例代码，而在门禁里那份**手抄**的依赖清单：骨架用例 18 有一句 `future::availableCores()`，`future` 只是 mlr3tuning 的 Suggests，装 `mlr3verse` 并不会带它，干净机器上那一例直接 `there is no package called 'future'`。于是清单改成由 `scripts/list_example_deps.R` 从示例本身算出——**结果它又红了一次**，因为"算"本身还有两个洞：`lrns(c("classif.rpart", "classif.kknn"))` 里的 kknn 不在 `lrn(` 紧邻位置，按位置扫扫不到；而 `classif.lightgbm` 由 `mlr3extralearners` 注册，该包没装时它的键压根不在字典里，**靠扫字典算清单的脚本永远发现不了自己缺了它**。现在的口径是：字典**提供方包**记成显式锚点账，且按分发通道分**硬软两级**——硬锚点（`mlr3verse` / `mlr3learners`，CRAN 上就有）装不上 = 这台机器不配跑门禁，直接红；软锚点（`mlr3extralearners`）**不在 CRAN**：本机对 TUNA 的 CRAN 索引逐个查，25158 个包里没有它、包页返回 404，而本机那份的 DESCRIPTION 里 `Repository` 字段是 NA、版本号 `1.7.0.9000`（GitHub 构建的形态），官方通道是 mlr-org 的 r-universe，所以 `--install` 时只把它追加到 `repos` 末位（CRAN/RSPM 供得上的仍旧优先走原通道）。软锚点缺席只影响它注册的那三个键（`classif.lightgbm` / `regr.lightgbm` / `classif.catboost`），于是用例 20 的学习器断言拆成两组：CRAN 基线组无条件断言，extralearners 组用 `requireNamespace()` 守卫、缺失记 SKIP——**把分发通道问题伪装成"文档有幻觉"，是一条比红更糟的红灯**。第三把尺是 `--mirror` 预飞：清单算出来之后，再逐个问一句"CI 那份仓库快照里到底有没有它"，把只能从非 CRAN 通道拿的包点名出来，顺带查它有没有 Windows 预编译二进制（实测 universe 上 `bin/windows/contrib/4.6/` 有 `mlr3extralearners`）。守卫写法也量过：探针显示该包**装了但没加载**时键就已经在字典里（`library(mlr3verse)` 下 `keys()` 加载前后都是 285 个），所以守卫用 `requireNamespace()` 足够，不必 `library()`。再加上枚举自检——扫到候选键却解析出 0 个后备包 = 静默失败，直接红：
+**CI 门禁 ≠ 免跑凭证。** 它跑的四道与本机同源，依赖清单也不手抄——由 `scripts/list_example_deps.R` 从示例本身算出（"扫字典算清单"会漏掉字典提供方自己，`classif.lightgbm` 的注册包就是活例子；细则见 CHANGELOG）：
 
 ```bash
-Rscript scripts/list_example_deps.R                       # 报告：示例到底要哪些包、本机缺哪个
+Rscript scripts/list_example_deps.R                       # 示例到底要哪些包、本机缺哪个
 Rscript scripts/list_example_deps.R --print-list          # 只打印待装包名（空格分隔）
-Rscript scripts/list_example_deps.R --install             # CI 用的就是这一条（含锚点账）
-Rscript scripts/list_example_deps.R --mirror --repos <你的 CRAN 镜像>  # 预飞：每个包能不能在 CI 的仓库里装上
-Rscript scripts/test_install_logged.R scripts/list_example_deps.R  # 上面那套安装诊断自己的回归（本机跑，需联网装 1 个小包进临时库）
+Rscript scripts/list_example_deps.R --install             # CI 用的就是这一条
+Rscript scripts/list_example_deps.R --mirror --repos <你的 CRAN 镜像>   # 预飞：CI 那份仓库快照里有没有它
 ```
 
-本机实测：清单 20 个包（hard 16 / opt 4），`--mirror` 逐条给来源，唯一非 CRAN 来源就是软锚点（它自己还拖一个 universe-only 的传递依赖 `mlr3cmprsk`，CRAN 上 404——所以通道必须同时供两个包）。这里也藏着一个假绿风险：mlr-org 的 universe 里 `mlr3` / `bbotk` / `mlr3misc` 等同名包**也在**，且是 `.9xxx` 开发版；`repos` 把 CRAN/RSPM 摆在前面就是为了不让它们抢走。不信顺序，所以 `--install` 末尾多印一行 `::notice::cran_release core=10 dev=-`——核心包一旦落到开发版就 `::warning::`，因为门禁测的必须是用户装得到那一版。
+`.github/workflows/gates.yml` 每次 push / PR 做三件事：按上面的清单装依赖 → **全量**跑 20 例（ubuntu + windows，不砍案例、不砍折数、不砍预算）→ 给全部文档示例做一次幻觉键体检；另一个 job 跑断言引擎自检。**红灯自带病因**：失败时把 `FAIL:` / `[幻觉]` 行、以及安装环节的逐包加载回执写成 workflow annotation，而不是只留一个状态灯。**环境与包安装：门禁只诊断、不替你修**——缺什么（含系统库）就点名什么，你自己装好再重试；仓库不会替你 `apt-get`，也不会为了让灯变绿而放宽断言或砍清单。当前一处已知限制：ubuntu job 红在镜像缺 `libglpk.so.40`（igraph 的 RSPM 二进制需要它），不影响任何示例与正文口径，windows job 与本机全绿。
 
-`.github/workflows/gates.yml` 在每次 push / PR 上自动做三件事：按上面算出的清单装依赖 → **全量**跑 20 例（ubuntu + windows 双平台，不砍案例、不砍折数、不砍预算）→ 给全部文档示例做一次幻觉键体检；另一个 job 跑断言引擎自检。**红灯现在自带病因**：回归与体检两步都把 `[幻觉]` / `FAIL:` 行写成 workflow annotation，不再只留一个状态灯。
+诊断脚本自己也有回归：`Rscript scripts/test_install_logged.R scripts/list_example_deps.R`（十节断言）；`--install-probe <包>` 能在本机临时库里复演干净机器的安装路径，绝不动用户库。
 
-**依赖与环境：门禁只诊断，不替你装环境。** `--install` / `--mirror` 把"要哪些包、缺哪些、能不能从镜像装上"算清楚；真正安装走子进程收日志，失败时按**磁盘上有 / 没有**分两类点名——没装上就贴它的日志段，已安装却加载不了就往下钻一层点出真正 dlopen 失败的依赖（unix 上再 `ldd` 一遍，把缺的系统库名一起贴出）。为什么要分这两类：`install.packages` 只看"装没装过"，装了就直接跳过，于是"永远装不上"和"日志里一行报错都没有"会同时成立（ubuntu runner 上的 `kknn` 就是这个形态：它磁盘上有，坏的是它的依赖 `igraph.so` 缺系统库）。**这类环境缺口门禁只报不修**：缺什么就点名什么，由你装好（含系统库）再重试；仓库不会替你 `apt-get`，也不会为了让状态灯变绿而放宽任何断言或砍清单。至于"这段诊断本身对不对"，它有自己的回归：`scripts/test_install_logged.R`（十节，本机跑），以及 `--install-probe <包>` 一条命令在本机**复演**只有干净机器才走的那条安装路径（临时库，绝不动你的用户库）。三轮线上读数的过程记录（每一轮推翻了上一轮哪个假设）留在 `CHANGELOG.md`，不在这里占版面。
-
-**本机实测收口数**（R 4.6.1 / Windows）：`verify_examples.R 20/20 PASS`、`check_answer_api.R` 幻觉键 0、harness 十节全过、`run_evals.mjs --selftest` 引擎 PASS。**已知限制**：ubuntu 那个 job 目前红在依赖步骤，病因是 runner 镜像缺系统库 `libglpk.so.40`——公告原文：`unable to load shared object '.../igraph/libs/igraph.so': libglpk.so.40: cannot open shared object file`，且 `ldd[igraph] 缺的系统库: igraph.so: libglpk.so.40 => not found`（不是本仓库的代码或清单问题：同一提交上 windows job 与本机全绿，普查显示该 igraph 二进制是这次从 RSPM 装进来之后才加载不了的）。它**不影响本 skill 的任何示例与正文口径**；你自己的机器上遇到同类报错，照公告点名的库补上（Debian/Ubuntu 上 `libglpk.so.40` 由 `libglpk0` / `libglpk-dev` 提供；这条对应关系按发行版惯例给出，**本仓库没有在 runner 上实装验证过**——按上面那条边界，环境不由门禁代劳）再重试即可——门禁不会替你装环境。
-
-但**改动示例代码后仍须本机实跑一遍**（整套 20 例含 R 会话启动，本机两次实测 22s 与 27s，脚本每例自报秒数），并把通过率写进 CHANGELOG——CI 只证明"这两个平台、这个时点的 CRAN 快照"跑得通，而你交付给用户的环境是你自己的机器；两者的实测记录不能互相顶替。
+**改完示例代码仍须本机实跑一遍**，并把通过率写进 CHANGELOG——CI 只证明"这两个平台、这个时点的 CRAN 快照"跑得通，你交付给用户的环境是你自己的机器，两份实测记录不能互相顶替。
 
 **评测**（evals.json 的 6 个 prompt 覆盖标准流程/红线拦截/时间序列/不平衡/回归/嵌套重抽样陷阱）：把回答存进 `evals/outputs/eval-<id>.md`，然后：
 
@@ -191,6 +187,20 @@ Rscript scripts/check_answer_api.R examples/replay/skilled-eval-1.md examples/re
 ```
 
 它把回答里所有 `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` 的首参逐个对着 mlr3verse 字典探测，键不存在就点名并附字典自己的 "Did you mean" 提示，退出码 1。本机实测：`baseline-*` 两份 4+4 个幻觉键全部被抓；把 `SKILL.md` + 全部 `references/` + A 组 6 份 + `examples/replay/skilled-*` 一起喂进去，**168 个唯一键 0 幻觉**（这个数随正文增删而变，以现跑为准）。CI 每次 push 都做这同一次体检——skill 教的代码哪天因为上游改名而失效，门禁会先红，而不是等用户投诉。
+
+## 版本与更新历史
+
+**当前发布版本：v2.3.0**（tag `v2.3.0`）。本仓库自己的版本号与更新历史是产品的一部分，跟着仓库走：
+
+| 在哪看 | 内容 |
+|---|---|
+| [`CHANGELOG.md`](CHANGELOG.md) | 逐版记录，**每版讲清"为什么改"**，不只是改动清单；未发布的改动堆在 `[Unreleased]` 段 |
+| [tags](https://github.com/zhjx19/ml-mlr3/tags) | 打 tag 即发版：`v2.3.0` ← `v2.2.0` ← `v2.1.0`；首屏 `version` 徽章就是最新 tag |
+| `SKILL.md` frontmatter 的 `version:` | 给 runtime / 市场读的那一份 |
+
+**三处必须逐字相同，且这件事有机检**：`scripts/verify_examples.R` 开头有一条不计入用例数的自检，比对 SKILL.md frontmatter / README 本节 / CHANGELOG 最新已发布条目，不一致就直接红。为什么值得钉一道尺：这个仓库真有过两份平行的版本元数据（一份 marketplace 声明和 SKILL.md 各说各话），那份已归档移除，但"版本号抄在两个地方就会分家"是结构性风险，不是巧合。
+
+发版纪律：`[Unreleased]` 攒到的改动要经用户明确授权才打 tag；打 tag 前四道门禁须全绿，且示例代码改动必须有**本机实跑**记录（不只是 CI 绿）。至于 skill 教的 mlr3 用法本身，正文刻意**不写上游包的版本号与迁移账目**——那是 mlr3 自己 NEWS 的职责，本 skill 只保留一行实测环境记录（见 SKILL.md「API 现场校验」）与当场探测的纪律。
 
 ## 致谢
 

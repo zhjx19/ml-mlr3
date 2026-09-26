@@ -11,6 +11,39 @@
 # 用法（skill 目录下）：
 #   Rscript scripts/verify_examples.R
 # 退出码：0 = 全部 PASS；1 = 任一 FAIL。
+
+# ── 文档口径自检（不计入用例数）：本项目的版本号必须三处一致 ──────────────────────
+# 为什么钉在这里、且钉在 library() 之前：历史上这个仓库有过两份平行的版本元数据
+# （marketplace 声明文件 vs SKILL.md），结果是"两个通道版本号各说各话"。那份声明文件已归档
+# 移除，但同一个坑还会再踩——版本号只要抄在两个地方就会分家。现在唯一的权威是三处本仓库
+# 自己的文本：SKILL.md frontmatter、README 的版本段、CHANGELOG 最新**已发布**条目。
+# 放在依赖库之前，是因为元数据不一致时不该还要等 mlr3verse 加载起来才告诉你。
+ver_num = function(x) {
+  m = regmatches(x, gregexpr("[0-9]+[.][0-9]+[.][0-9]+", x, perl = TRUE))
+  if (length(m) && length(m[[1]])) m[[1]][1] else NA_character_
+}
+meta_check = function(root = ".") {
+  f_sk = file.path(root, "SKILL.md"); f_rd = file.path(root, "README.md"); f_cl = file.path(root, "CHANGELOG.md")
+  if (!all(file.exists(f_sk, f_rd, f_cl))) {
+    cat("[SKIP] 版本自洽检查：三个文件没都在（root =", normalizePath(root, mustWork = FALSE), "）\n")
+    return(invisible(TRUE))
+  }
+  v_sk = ver_num(grep("^version:", readLines(f_sk, warn = FALSE), value = TRUE)[1])
+  ln_rd = grep("当前发布版本", readLines(f_rd, warn = FALSE), value = TRUE)
+  v_rd = if (length(ln_rd)) ver_num(ln_rd[1]) else NA_character_
+  rel_cl = grep("^## [[][0-9]", readLines(f_cl, warn = FALSE), value = TRUE)   # 跳过 [Unreleased]
+  v_cl = if (length(rel_cl)) ver_num(rel_cl[1]) else NA_character_
+  got = c(SKILL = v_sk, README = v_rd, CHANGELOG = v_cl)
+  if (any(is.na(got)))
+    stop("版本号缺失：", paste(sprintf("%s=%s", names(got), got[!is.na(got)]), collapse = " "),
+      call. = FALSE)
+  if (!identical(unique(got), v_sk) || length(unique(got)) != 1L)
+    stop(sprintf("三处版本号不一致: SKILL=%s README=%s CHANGELOG=%s", v_sk, v_rd, v_cl), call. = FALSE)
+  cat(sprintf("[OK] 版本自洽 v%s（SKILL.md / README.md / CHANGELOG.md 三处一致）\n", v_sk))
+  invisible(TRUE)
+}
+meta_check(if (file.exists("SKILL.md")) "." else if (file.exists("../SKILL.md")) ".." else ".")
+
 suppressPackageStartupMessages({
   library(mlr3verse)
   library(data.table)
