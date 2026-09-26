@@ -1,10 +1,12 @@
 # list_example_deps.R —— 把"示例到底要哪些 R 包"变成可重跑的账，而不是 README 里手抄的清单
 #
-# 为什么要有这个脚本（2026-09-26 的活体尺事故）：CI 首次上线就在 ubuntu + windows 双平台全红，
-# 而本机 `verify_examples.R` 20/20 PASS。对账下来根因是门禁里那份**手抄**的依赖清单漏了 `future`——
-# 骨架用例 18 里有一句 `future::availableCores()`，而 `future` 只是 mlr3tuning 的 Suggests，
-# 装 mlr3verse 不会带它。手抄清单和示例实际用量之间没有防线，哪天示例多加一个 `pkg::`，
-# 门禁就先红给全世界看。现在清单由示例本身算出来。
+# 为什么要有这个脚本（2026-09-26 的活体尺事故，同一处先后抓到两个洞）：
+# 洞 1：门禁里那份**手抄**清单漏了 `future`——用例 18 有 `future::availableCores()`，而它只是
+#        mlr3tuning 的 Suggests，装 mlr3verse 不带。→ 清单改由示例本身算出来。
+# 洞 2：清单由"紧跟在 lrn( / po( 后面的字符串"算出来，漏了 `lrns(c("classif.rpart","classif.kknn"))`
+#        里的 kknn，也永远算不到 mlr3extralearners（该包没装时它注册的键压根不在字典里，
+#        扫字典的脚本无法发现自己缺了它）。→ 见下面 anchor 账 + ctor 行判定。
+# 两次都是同一个病：**本机全绿、CI 全红**，差别只在于机器上手动装过什么。
 #
 # 用法：
 #   Rscript scripts/list_example_deps.R                       # 人类可读报告（本机/排障）
@@ -13,13 +15,10 @@
 #   Rscript scripts/list_example_deps.R --src SKILL.md         # 换扫描对象（默认 scripts/verify_examples.R）
 #
 # 分类口径：
+#   anchor = 提供字典本身的包（装了它，字典才枚举得出对应键）→ 无条件先装
 #   hard   = 示例真的会执行到、且没有 requireNamespace 兜底的包 → 装不上就该红
 #   opt    = 示例里被 requireNamespace("pkg") 守卫的包 → 缺失由 verify_examples.R 记 SKIP
 #   bundled= 随 R 本体发行（base + recommended），不进安装清单
-
-suppressWarnings(suppressMessages({
-  need_ml = requireNamespace("mlr3verse", quietly = TRUE)
-}))
 
 args = commandArgs(trailingOnly = TRUE)
 flag = \(f) any(args == f)
@@ -34,17 +33,21 @@ src_files = unique(unlist(lapply(src_files, Sys.glob)))
 src_files = src_files[file.exists(src_files)]
 if (!length(src_files)) stop("没有可扫描的源文件：检查 --src 参数")
 
-# --install 模式下先确保锚点包在位：字典键的后备包要靠 mlr3verse 的字典解析，
-# 干净机器（CI）上它还没装，不先装就会算出一份"只含 pkg::/library() 里出现的包"的残缺清单。
-if (flag("--install") && !requireNamespace("mlr3verse", quietly = TRUE)) {
-  cat("=== 先装锚点包 mlr3verse（字典解析依赖它）===\n")
-  install.packages("mlr3verse", Ncpus = 4L)
-  need_ml = requireNamespace("mlr3verse", quietly = TRUE)
-  if (!need_ml) {
-    cat("::error::mlr3verse 安装失败，示例依赖清单无法解析\n")
-    quit(status = 1L)
+# ── 锚点账：字典的提供方包，不靠扫描发现（扫描依赖它们先在场）────────────────────
+anchor = c("mlr3verse", "mlr3learners", "mlr3extralearners")
+if (flag("--install")) {
+  a_miss = anchor[!vapply(anchor, requireNamespace, logical(1), quietly = TRUE)]
+  if (length(a_miss)) {
+    cat("=== 先装锚点包（字典提供方）:", paste(a_miss, collapse = ", "), "===\n")
+    install.packages(a_miss, Ncpus = 4L)
+    a_still = anchor[!vapply(anchor, requireNamespace, logical(1), quietly = TRUE)]
+    if (length(a_still)) {
+      cat(sprintf("::error::锚点包安装失败，字典无法枚举: %s\n", paste(a_still, collapse = ", ")))
+      quit(status = 1L)
+    }
   }
 }
+need_ml = requireNamespace("mlr3verse", quietly = TRUE)
 
 src = unlist(lapply(src_files, \(f) readLines(f, warn = FALSE)))
 
@@ -52,50 +55,62 @@ src = unlist(lapply(src_files, \(f) readLines(f, warn = FALSE)))
 bundled = c("base", "compiler", "datasets", "grDevices", "graphics", "methods",
   "parallel", "splines", "stats", "tcltk", "tools", "codetools", "utils")
 
-grab_keys = \(fn) {
-  m = unlist(regmatches(src, gregexpr(sprintf("%s\\(\\s*[\"']([^\"']+)[\"']", fn), src)), use.names = FALSE)
-  if (!length(m)) return(character(0))
-  out = sub(sprintf("^%s\\(\\s*[\"']([^\"']+)[\"'].*", fn), "\\1", m)
-  sort(unique(out[nzchar(out)]))
-}
+# ── 1) 会被真正实例化的键 = 出现在字典构造函数所在**整行**上的字符串 ──────────────
+# 为什么按行而不是按"紧跟 fn( 的位置"：`lrns(c("classif.rpart", "classif.kknn"))` 里 kknn 不在
+# `lrn(` 后面，按位置扫就漏；漏了就是 CI 上那句 "The following packages could not be loaded: kknn"。
+ctor_line_pat = "(^|[^A-Za-z0-9._])(lrns?|msrs?|rsmps?|tnrs?|fss?|tsks?|pos?|ppl|graphs?|fsors?|tnors?)\\("
+ctor_src = src[vapply(src, \(l) grepl(ctor_line_pat, l, perl = TRUE), logical(1))]
+quoted = \(x) unique(gsub("[\"']", "", unlist(regmatches(x,
+  gregexpr("[\"']([A-Za-z][A-Za-z0-9._]*)[\"']", x, perl = TRUE)), use.names = FALSE)))
+dict_keys = setdiff(quoted(ctor_src), bundled)
 
-# 1) 字典键声明的后备包：lrn/po/msr/rsmp/tnr 走各自字典的 $packages，ppl 走 mlr_graphs
-dict_of = c(lrn = "mlr_learners", po = "mlr_pipeops", msr = "mlr_measures",
-  rsmp = "mlr_resamplings", tnr = "mlr_tuners", ppl = "mlr_graphs")
+# 键 -> 它声明的后备包。后端没装时 $get() 只发 warning（"Package 'dbarts' required but not
+# installed"）但包名照样读得到，所以这里 muffling 警告而不是放弃解析。
+dict_names = c("mlr_learners", "mlr_pipeops", "mlr_measures", "mlr_resamplings",
+  "mlr_tuners", "mlr_graphs", "mlr_fselectors", "mlr_tasks")
 dict_pkgs = character(0)
 dict_detail = list()
 if (need_ml) {
   suppressPackageStartupMessages(library(mlr3verse))
-  for (fn in names(dict_of)) {
-    keys = grab_keys(fn)
-    if (!length(keys)) next
-    d = get(dict_of[[fn]])                       # 字典由 mlr3verse 附带，直接取
-    pk = vapply(keys, \(k) {
-      got = try(d$get(k), silent = TRUE)         # ppl 构造器要实参，取不到就跳过
-      if (inherits(got, "try-error")) return("")
+  for (dn in dict_names) {
+    # 注意：字典是 R6 环境对象，`exists(dn, mode = "list")` 会把它判成"不存在"而全体跳过——
+    # 那样清单会静默退化成只剩 pkg::/library() 那条路，正是本脚本要防的病。用默认 mode。
+    if (!exists(dn)) next
+    d = get(dn)
+    hit = Filter(\(k) isTRUE(try(d$has(k), silent = TRUE)), dict_keys)
+    if (!length(hit)) next
+    pk = vapply(hit, \(k) {
+      got = withCallingHandlers(try(d$get(k), silent = TRUE),
+        warning = \(w) invokeRestart("muffleWarning"))
+      if (inherits(got, "try-error")) return("")          # 图/个别 PipeOp 构造器要实参：只记账不取包
       paste(as.character(got$packages), collapse = " ")
     }, character(1))
-    dict_detail[[fn]] = setNames(strsplit(pk, " ", fixed = TRUE), keys)
-    dict_pkgs = c(dict_pkgs, unlist(dict_detail[[fn]], use.names = FALSE))
+    dict_detail[[dn]] = setNames(strsplit(pk, " ", fixed = TRUE), hit)
+    dict_pkgs = c(dict_pkgs, unlist(dict_detail[[dn]], use.names = FALSE))
   }
 }
 
-# 2) 正文里直接写死的 pkg:: 前缀（future:: 就是这么溜进来的）
+# 自检：有键可解析却一个都没解析出来 = 字典枚举静默失败，清单必然残缺 → 直接红，不出清单。
+# 这条钉子来自今天的真事故（mode="list" 让八个字典全被跳过，清单从 17 个悄悄掉到 9 个）。
+if (need_ml && length(dict_keys) && !any(nzchar(dict_pkgs))) {
+  cat(sprintf("::error::扫到 %d 个候选键却解析出 0 个后备包：字典枚举失败，清单不可信\n", length(dict_keys)))
+  quit(status = 1L)
+}
+
+# ── 2) 正文里直接写死的 pkg:: 前缀（洞 1 的 future:: 就是这么溜进来的）──────────────
 colon_pkgs = unique(unlist(regmatches(src,
   gregexpr("(?<![A-Za-z0-9._])[A-Za-z][A-Za-z0-9.]*(?=::)", src, perl = TRUE)), use.names = FALSE))
 
-# 3) library()/require() 显式加载的包（mlr3tuningspaces 这类"整包挂载"）
-lib_pkgs = unique(unlist(regmatches(src,
-  gregexpr("(?:library|require)\\(\\s*[\"']?([A-Za-z][A-Za-z0-9.]*)", src, perl = TRUE)), use.names = FALSE))
+# ── 3) library()/require() 显式加载的包（mlr3tuningspaces 这类"整包挂载"）───────────
 lib_pkgs = vapply(unlist(regmatches(src,
   gregexpr("(?:library|require)\\(\\s*[\"']?[A-Za-z][A-Za-z0-9.]*", src, perl = TRUE)), use.names = FALSE),
   \(x) sub("^.*(?:library|require)\\(\\s*[\"']?", "", x), character(1))
 
-# 4) 被 requireNamespace("pkg") 守卫的包 = 可选（缺失由 verify_examples.R 记 SKIP）
+# ── 4) 被 requireNamespace("pkg") 守卫的包 = 可选（缺失由 verify_examples.R 记 SKIP）──
 guarded = unique(unlist(regmatches(src,
   gregexpr("(?<=requireNamespace\\([\"'])([A-Za-z][A-Za-z0-9.]*)(?=[\"'])", src, perl = TRUE))))
 
-need = sort(unique(c(dict_pkgs, colon_pkgs, lib_pkgs)))
+need = sort(unique(c(anchor, dict_pkgs, colon_pkgs, lib_pkgs)))
 need = setdiff(need, bundled)
 need = need[nzchar(need)]
 hard = setdiff(need, guarded)
@@ -109,10 +124,11 @@ if (flag("--print-list")) {
 }
 
 cat("=== 扫描对象 ===\n"); cat(paste(" ", src_files), sep = "\n")
-cat("\n=== 字典键 -> 后备包 ===\n")
-for (fn in names(dict_detail)) {
-  det = dict_detail[[fn]]
-  for (k in names(det)) cat(sprintf("  %-5s %-24s -> %s\n", fn, k, paste(det[[k]], collapse = ", ")))
+cat(sprintf("\n=== 锚点包（字典提供方，无条件先装）===\n  %s\n", paste(anchor, collapse = "  ")))
+cat("\n=== 构造函数行上的键 -> 后备包 ===\n")
+for (dn in names(dict_detail)) {
+  det = dict_detail[[dn]]
+  for (k in names(det)) cat(sprintf("  %-16s %-26s -> %s\n", dn, k, paste(det[[k]], collapse = ", ")))
 }
 cat("\n=== 正文 pkg:: 直接引用 ===\n")
 cat(" ", paste(sort(unique(colon_pkgs)), collapse = "  "), "\n")
@@ -140,23 +156,25 @@ if (flag("--install")) {
     quit(status = 1L)
   }
   if (length(still)) cat(sprintf("::warning::可选依赖缺失（用例将记 SKIP）: %s\n", paste(still, collapse = ", ")))
-  # 环境指纹写成 annotation：CI 的 step summary 在公开 API 里读不到，而"安装步骤 23 秒报成功"
-  # 这种可疑结论必须先能公开复核——它到底装没装、装的是哪一版，一眼可见。
-  key = intersect(c("mlr3", "mlr3verse", "mlr3pipelines", "mlr3tuning", "mlr3fselect",
-    "mlr3mbo", "paradox", "bbotk", "ranger", "xgboost", "e1071", "future", "ps"), need)
-  fingerprint = c(
+
+  # 环境指纹写成 annotation：step summary 在公开 API 里读不到，而"安装步骤 19 秒报成功"这种
+  # 结论必须能被匿名读者复核——它到底装没装、装的是哪一版、装进了哪条 libPath。
+  key = intersect(c("mlr3", "mlr3verse", "mlr3learners", "mlr3extralearners", "mlr3pipelines",
+    "mlr3tuning", "mlr3mbo", "bbotk", "ranger", "xgboost", "kknn", "e1071", "future", "ps"), need)
+  vers = vapply(key, \(p) tryCatch(as.character(packageVersion(p)), error = \(e) "MISSING"), character(1))
+  cat(paste(c(
     sprintf("::notice::deps need=%d todo=%d still_missing=%s",
-      length(need), length(todo), if (length(still)) paste(still, collapse = ",") else "-"),    sprintf("::notice::R %s | %s", paste(R.version$major, R.version$minor, sep = "."),
-      paste(sprintf("%s=%s", key, vapply(key, \(p) tryCatch(
-        as.character(packageVersion(p)), error = \(e) "MISSING"), character(1))), collapse = " ")),
+      length(need), length(todo), if (length(still)) paste(still, collapse = ",") else "-"),
+    sprintf("::notice::R %s | %s", paste(R.version$major, R.version$minor, sep = "."),
+      paste(sprintf("%s=%s", key, vers), collapse = " ")),
     sprintf("::notice::libPaths[1] = %s", .libPaths()[1])
-  )
-  cat(paste(fingerprint, collapse = "\n"), "\n")
+  ), collapse = "\n"), "\n")
+
   summary = Sys.getenv("GITHUB_STEP_SUMMARY")
   if (nzchar(summary)) {
-    vers = vapply(need, \(p) tryCatch(as.character(packageVersion(p)), error = \(e) "MISSING"), character(1))
+    all_v = vapply(need, \(p) tryCatch(as.character(packageVersion(p)), error = \(e) "MISSING"), character(1))
     cat("### 示例依赖（由 scripts/list_example_deps.R 从示例本身算出）\n```\n",
-      paste0(sprintf("%-20s", names(vers)), vers, collapse = "\n"), "\n```\n",
+      paste0(sprintf("%-20s", names(all_v)), all_v, collapse = "\n"), "\n```\n",
       file = summary, append = TRUE)
   }
   quit(status = 0L)
