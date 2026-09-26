@@ -168,7 +168,7 @@ Rscript scripts/list_example_deps.R --install             # CI 用的就是这�
 Rscript scripts/list_example_deps.R --mirror --repos <你的 CRAN 镜像>   # 预飞：CI 那份仓库快照里有没有它
 ```
 
-`.github/workflows/gates.yml` 每次 push / PR 做三件事：按上面的清单装依赖 → **全量**跑 20 例（ubuntu + windows，不砍案例、不砍折数、不砍预算）→ 给全部文档示例做一次幻觉键体检；另一个 job 跑断言引擎自检。**红灯自带病因**：失败时把 `FAIL:` / `[幻觉]` 行、以及安装环节的逐包加载回执写成 workflow annotation，而不是只留一个状态灯。**环境与包安装**：门禁把**系统级前置**在 workflow 里显式声明并安装（ubuntu 缺的 `libglpk.so.40` 由 `apt-get install libglpk40` 补上）——这是给测试环境备料、写在明面上，不是遮掩断言；除系统前置外，门禁只诊断、不放宽断言、不砍清单。此前缺 `libglpk.so.40` 会让 ubuntu 上的 `igraph` 二进制无法 `dlopen`，进而 `classif.kknn` 加载失败、依赖它的用例 `ppl(branch) 分支调参` 无法执行（这才是 ubuntu 红灯的真实影响面）；补系统前置后 ubuntu 应与 windows 同为全绿——本改动待下一次 push 由 CI 验证，不预先声称已绿。windows job 与本机全绿。
+`.github/workflows/gates.yml` 每次 push / PR 做三件事：按上面的清单装依赖 → **全量**跑 20 例（ubuntu + windows，不砍案例、不砍折数、不砍预算）→ 给全部文档示例做一次幻觉键体检；另一个 job 跑断言引擎自检。**红灯自带病因**：失败时把 `FAIL:` / `[幻觉]` 行、以及安装环节的逐包加载回执写成 workflow annotation，而不是只留一个状态灯。**环境与包安装**：门禁把**系统级前置**在 workflow 里显式声明并安装（ubuntu 缺的 `libglpk.so.40` 由 `apt-get install libglpk40` 补上）——这是给测试环境备料、写在明面上，不是遮掩断言；除系统前置外，门禁只诊断、不放宽断言、不砍清单。此前缺 `libglpk.so.40` 会让 ubuntu 上的 `igraph` 二进制无法 `dlopen`，进而 `classif.kknn` 加载失败、依赖它的用例 `ppl(branch) 分支调参` 无法执行（这才是 ubuntu 红灯的真实影响面）；补系统前置后 ubuntu 已与 windows 同为全绿（CI run #11，2026-09-26：ubuntu / windows / selftest 三 job 均 success）。windows job 与本机全绿。
 
 诊断脚本自己也有回归：`Rscript scripts/test_install_logged.R scripts/list_example_deps.R`（十节断言，**需联网**——会在临时库里真实装一个小包，受限网络下可能耗时数分钟）；`--install-probe <包>` 能在本机临时库里复演干净机器的安装路径，绝不动用户库。
 
@@ -196,12 +196,12 @@ Rscript scripts/check_answer_api.R examples/replay/skilled-eval-1.md examples/re
 
 ## 版本与更新历史
 
-**当前发布版本：v2.4.0**（CHANGELOG 与 `SKILL.md` frontmatter 同步为 2.4.0；线上最新 tag 仍是 `v2.3.0`，`v2.4.0` 的 tag 等一次明确授权再打）。本仓库自己的版本号与更新历史是产品的一部分，跟着仓库走：
+**当前发布版本：v2.4.0**（已打 tag `v2.4.0`；CHANGELOG 与 `SKILL.md` frontmatter 同步为 2.4.0）。本仓库自己的版本号与更新历史是产品的一部分，跟着仓库走：
 
 | 在哪看 | 内容 |
 |---|---|
 | [`CHANGELOG.md`](CHANGELOG.md) | 逐版记录，**每版讲清"为什么改"**，不只是改动清单；未发布的改动堆在 `[Unreleased]` 段 |
-| [tags](https://github.com/zhjx19/ml-mlr3/tags) | 打 tag 即发版：`v2.3.0` ← `v2.2.0` ← `v2.1.0`；首屏 `version` 徽章读的是最新 tag，所以它此刻仍显示 `v2.3.0` |
+| [tags](https://github.com/zhjx19/ml-mlr3/tags) | 打 tag 即发版：`v2.4.0` ← `v2.3.0` ← `v2.2.0` ← `v2.1.0`；首屏 `version` 徽章读最新 tag（现为 `v2.4.0`） |
 | `SKILL.md` frontmatter 的 `version:` | 给 runtime / 市场读的那一份 |
 
 **三处必须逐字相同，且这件事有机检**：`scripts/verify_examples.R` 开头有一条不计入用例数的自检，比对 SKILL.md frontmatter / README 本节 / CHANGELOG 最新已发布条目，不一致就直接红。为什么值得钉一道尺：这个仓库真有过两份平行的版本元数据（一份 marketplace 声明和 SKILL.md 各说各话），那份已归档移除，但"版本号抄在两个地方就会分家"是结构性风险，不是巧合。

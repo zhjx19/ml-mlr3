@@ -2,27 +2,28 @@
 
 本仓库遵循「发版讲清为什么改」的迭代纪律：每个版本记录动机，不只是改动清单。
 
-## [Unreleased]
+## [2.4.0] — 2026-09-26 · 发布（门禁四次量尺 + README 修正 / 英文版 / 证据卡 / 系统前置）
 
-### Fixed（本轮：README 两处失实/不一致 + 可复现证据卡）
-- **README「已知限制」一句失实修正**。为什么改：原文说 ubuntu 缺 `libglpk.so.40` "不影响任何示例与正文口径"，但 CI 公开公告显示该缺库令 `igraph.so` 无法 `dlopen` → `classif.kknn` 加载失败（`AFTER_INSTALL: kknn=MISS`），而用例 `ppl(branch) 分支调参` 正依赖 `classif.kknn`，在 ubuntu 上无法执行。改为如实写明"影响面 = 该用例在 ubuntu 无法执行"，并说明已在 workflow 显式补系统前置、待下次 push 由 CI 验证（不预先声称已绿）。
+### Fixed（README 两处失实/不一致 + 可复现证据卡）
+- **README「已知限制」一句失实修正**。为什么改：原文说 ubuntu 缺 `libglpk.so.40` "不影响任何示例与正文口径"，但 CI 公开公告显示该缺库令 `igraph.so` 无法 `dlopen` → `classif.kknn` 加载失败（`AFTER_INSTALL: kknn=MISS`），而用例 `ppl(branch) 分支调参` 正依赖 `classif.kknn`，在 ubuntu 上无法执行。改为如实写明"影响面 = 该用例在 ubuntu 无法执行"，并说明已在 workflow 显式补系统前置，Ubuntu 已由 CI run #11 验证转绿。
 - **README 口径统一**：「它跑的**四道**」与下文「做**三件事**」、`gates.yml` 头部「**三道门禁**」三处对同一件事有两个数字，统一为"三道门禁"。
 - **README 补联网/耗时提示**：`Rscript scripts/test_install_logged.R scripts/list_example_deps.R` 会在临时库里真实联网装包，受限网络下可能耗时数分钟——此前与几条秒级命令并列列出却无提示。
 - **README 补"为什么不开 marketplace 通道"**：与 CHANGELOG [2.4.0] 移除 `.claude-plugin/` 的取舍对齐，一句话讲清理由。
 
 ### Added
-- **`README.en.md` + 双语互链**：中英首行 `<sub>🌐</sub>` 互链。为什么加：首屏 `description` 已改英文以利跨 runtime 检索，英文读者点进来却只有中文 README；现补齐同结构的英文版，内容与中文版逐节对应（版本段同样声明 v2.4.0 与未打 tag）。
+- **`README.en.md` + 双语互链**：中英首行 `<sub>🌐</sub>` 互链。为什么加：首屏 `description` 已改英文以利跨 runtime 检索，英文读者点进来却只有中文 README；现补齐同结构的英文版，内容与中文版逐节对应（版本段同样声明 v2.4.0）。
 - **`assets/evidence-card.svg` + `scripts/render_evidence_card.mjs`**：把门禁的真实转录（`assets/gates-output-*.txt`）渲染成一张可提交、可 diff 的 SVG 证据卡。为什么是 SVG 不是 GIF：录制工具（vhs/asciinema/ffmpeg）不是人人都有，SVG 只依赖 node，任何人 `node scripts/render_evidence_card.mjs <txt> <svg>` 都能从同一份转录重录——满足"Showcase 必须可复现"。
-- **`gates.yml` 系统前置步骤**：ubuntu job 在装依赖前 `apt-get install -y libglpk40`，把系统级前置写成明面上的备料步骤，而非静默修断言。**待下一次 push 由 CI 验证 ubuntu 是否转绿。**
+- **`gates.yml` 系统前置步骤**：ubuntu job 在装依赖前 `apt-get install -y libglpk40`，把系统级前置写成明面上的备料步骤，而非静默修断言。**已在 CI run #11 验证 ubuntu 转绿。**
 
 ### 验证
 - 本轮改动后（本地）：`verify_examples.R` 版本自检 + 20/20 PASS；`check_answer_api.R` 168 键 0 幻觉；`run_evals.mjs` A 组 26 PASS / B 组 12 FAIL；`test_install_logged.R` 十节全过（真实联网装包，本机 >5min）。
+- 线上 CI（run #11 @ `e4e3566`）：ubuntu / windows / selftest **三 job 全 success**，系统前置 `libglpk40` 在 CI 上验证通过（此前 ubuntu 的灯为红）。
 - 本地部署同步（非仓库改动，记此备查）：`.config/opencode/skills/ml-mlr3` 与 Desktop 备份两份独立 clone 由 v2.1.1 快进至 v2.4.0（`39 / 0` 可 ff），其余 5 份 Junction/Symlink 随之生效。
 
-## [2.4.0] — 2026-09-26 · 门禁给自己量了四次尺，第四条线收在边界内
+### 前序（并入 v2.4.0）：门禁给自己量了四次尺，第四条线收在边界内
 
 ### Changed（本轮收尾：README 去过程叙事 + 补回本项目自己的版本号）
-- **README 里那三大段门禁 internals 删掉了**（依赖清单怎么从手抄改成算出来、硬软锚点账、`--mirror` 预飞、通道纯度、四轮安装诊断的逐轮读数）。为什么改：用户 2026-09-26 直接指出"这些没什么用的东西为什么还要放在 README 里"——那是**我做门禁的过程**，不是**用户装它要知道的契约**；细节在 CHANGELOG 里一条没少，README 只留四行命令、一句"红灯自带病因"、一句"环境只报不修"、一行已知限制。**顺手纠一个我自己外推错了的规矩**：用户此前说的是"别放 mlr3 / mlr3pipelines 包更新说明（NEWS）里的版本号"，我执行成了"本项目不提版本号"，结果仓库有 tag（`v2.1.0`/`v2.2.0`/`v2.3.0`）有 CHANGELOG，README 首屏却一个版本号都没有——公开读者无从判断自己装的是哪一版。现在补回：README 新增「版本与更新历史」段 + 首屏取最新 tag 的 `version` 徽章 + `SKILL.md` frontmatter 的 `version:`，三处随本版定为 `2.4.0`。**并且给这件事钉了一道尺**：`scripts/verify_examples.R` 开头新增一条不计入用例数的元数据自检，比对 SKILL.md frontmatter / README 版本段 / CHANGELOG 最新已发布条目三处，不一致直接红——理由是这个仓库历史上真出过"两份平行的版本元数据各说各话"（那份 marketplace 声明已归档移除），版本号抄在两处就会分家是结构性风险而不是巧合。上游包 NEWS 版本号不进正文这条规矩不变：正文只留一行实测环境记录 + 当场探测的纪律。本版 tag `v2.4.0` 尚未打（发版动作另等授权），所以首屏徽章此刻仍读 `v2.3.0`——这一点在 README 里写明了，不留一个看着像全绿其实对不上号的徽章。**本版推前实跑**：`verify_examples.R` 元数据自检 `[OK] 版本自洽 v2.4.0` + `20/20 PASS`（连跑两次：合计 78s / 52s，同一套上次记的是 25s——机器变慢的原因没查，用例数与断言一条没减，计时账本来就为此而留）、`check_answer_api.R 168 个唯一键 0 幻觉`、`test_install_logged.R` 十节全过（含 §10 定义顺序尺）、`--install` 干跑 `need=20 todo=0` 且 `cran_release core=10 dev=-`、`run_evals.mjs --selftest` 引擎 PASS。
+- **README 里那三大段门禁 internals 删掉了**（依赖清单怎么从手抄改成算出来、硬软锚点账、`--mirror` 预飞、通道纯度、四轮安装诊断的逐轮读数）。为什么改：用户 2026-09-26 直接指出"这些没什么用的东西为什么还要放在 README 里"——那是**我做门禁的过程**，不是**用户装它要知道的契约**；细节在 CHANGELOG 里一条没少，README 只留四行命令、一句"红灯自带病因"、一句"环境只报不修"、一行已知限制。**顺手纠一个我自己外推错了的规矩**：用户此前说的是"别放 mlr3 / mlr3pipelines 包更新说明（NEWS）里的版本号"，我执行成了"本项目不提版本号"，结果仓库有 tag（`v2.1.0`/`v2.2.0`/`v2.3.0`）有 CHANGELOG，README 首屏却一个版本号都没有——公开读者无从判断自己装的是哪一版。现在补回：README 新增「版本与更新历史」段 + 首屏取最新 tag 的 `version` 徽章 + `SKILL.md` frontmatter 的 `version:`，三处随本版定为 `2.4.0`。**并且给这件事钉了一道尺**：`scripts/verify_examples.R` 开头新增一条不计入用例数的元数据自检，比对 SKILL.md frontmatter / README 版本段 / CHANGELOG 最新已发布条目三处，不一致直接红——理由是这个仓库历史上真出过"两份平行的版本元数据各说各话"（那份 marketplace 声明已归档移除），版本号抄在两处就会分家是结构性风险而不是巧合。上游包 NEWS 版本号不进正文这条规矩不变：正文只留一行实测环境记录 + 当场探测的纪律。本版 tag `v2.4.0` 已于 2026-09-26 发布（CI run #11 三 job 全绿后打）。**本版推前实跑**：`verify_examples.R` 元数据自检 `[OK] 版本自洽 v2.4.0` + `20/20 PASS`（连跑两次：合计 78s / 52s，同一套上次记的是 25s——机器变慢的原因没查，用例数与断言一条没减，计时账本来就为此而留）、`check_answer_api.R 168 个唯一键 0 幻觉`、`test_install_logged.R` 十节全过（含 §10 定义顺序尺）、`--install` 干跑 `need=20 todo=0` 且 `cran_release core=10 dev=-`、`run_evals.mjs --selftest` 引擎 PASS。
 
 ### Added（本轮：安装步骤自诊断，已收口）
 
