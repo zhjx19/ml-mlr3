@@ -102,15 +102,33 @@ install_logged = function(pkgs, tag) {
     'writeLines(paste("REPOS_USED(option):", paste(getOption("repos"), collapse = " ; ")))',
     sprintf('rq = %s', dep1(repos_all)),
     'writeLines(paste("REPOS_REQUESTED:", paste(if (is.null(names(rq))) "" else paste0(names(rq), "="), rq, sep = "", collapse = " ; ")))',
-    # 装前/装后各报一次可加载状态：2026-09-26 ubuntu 的形态是"日志 1079 行、171 个二进制解包、
-    # 三次子进程全 rc=0、而 kknn 的名字一次都没出现"——那是"它压根没被请求安装"，
-    # 只有这一个原因：它在装之前是**能加载**的（runner 预装库里有），装完反而加载不了。
-    # 这个翻转在本脚本外面看不见（todo 就是按装前状态算的），必须由子进程同一进程内报出来。
+    # 装前/装后各报一次可加载状态：ubuntu 那次"日志 1062 行、171 个二进制解包、三个子进程全
+    # rc=0、kknn 名字零出现"，只有这一种成因——磁盘上已经有它，install.packages 认定"已装"
+    # 就跳过。光看 todo 看不见（它按装前状态算），必须由子进程在同一进程内报出来。
     sprintf('pkgs = %s', dep1(pkgs)),
     'st8 = function(v) paste0(v, "=", ifelse(vapply(v, requireNamespace, logical(1), quietly = TRUE), "OK", "MISS"))',
     'writeLines(paste("BEFORE_INSTALL:", paste(st8(pkgs), collapse = " ")))',
+    # 全库普查：此刻磁盘上"装着但加载不了"的包有哪些（只查各包自己声明的 Imports/Depends）。
+    # 装前装后各查一次，差集就说明"这一步安装把谁弄坏了"；两次的并集则直接给出真凶名单。
+    # 本轮 ubuntu 要的正是这条：igraph 从一开始就坏，还是被这 171 个二进制换坏的，成因不同修法不同。
+    # 写法上刻意避开反斜杠转义：chartr 把版本约束的括号/比较符换成空格，再按 "[, ]+" 切
+    # ——正则里不需要反斜杠，父会话拼字符串时就不会踩"少一个反斜杠"那个坑。
+    sprintf('bd = %s', dep1(c(bundled, "R"))),
+    'unl = function() { d = tryCatch(installed.packages(), error = function(e) NULL)',
+    '  if (is.null(d) || !nrow(d)) return(character(0))',
+    '  cs = intersect(c("Imports", "Depends"), colnames(d))',
+    '  x = trimws(unlist(strsplit(chartr("(),>=", "     ",',
+    '    as.character(unlist(d[, cs, drop = FALSE], use.names = FALSE))), "[, ]+"), use.names = FALSE))',
+    # 版本号会漏成 token："Matrix (>= 1.2)" 剥掉括号比较符后剩下 "1.2"。下面 %in% rownames 会把它
+    # 丢掉，但那道防线是"顺手挡一下"，不是设计——所以这里先按包名字形过滤一遍（第 9 节测的就是这条）。
+    '  x = x[grepl("^[[:alpha:]][[:alnum:].]*$", x)]',
+    '  x = unique(setdiff(x, c(bd, "")))',
+    '  on = x[x %in% rownames(d)]',
+    '  paste(sort(on[!vapply(on, requireNamespace, logical(1), quietly = TRUE)]), collapse = " ") }',
+    'writeLines(paste("UNLOADABLE_BEFORE:", unl()))',
     'install.packages(pkgs, repos = rq, Ncpus = 4L)',
     'writeLines(paste("AFTER_INSTALL:", paste(st8(pkgs), collapse = " ")))',
+    'writeLines(paste("UNLOADABLE_AFTER:", unl()))',
     'quit(status = 0L)'
   ), exprf)
   # 生成的子进程脚本必须先能 parse：不检查的话，语法碎掉表现为"包全都装不上"，
@@ -143,10 +161,14 @@ read_log = function() {
 }
 
 # 注解里的多行必须用 %0A（工作流命令按行解析，裸换行会把一条诊断劈成 N 条）
+# 关键在"每一条都要 sanitize"：2026-09-26 CI 上 why_missing 贴的 conditionMessage 自带换行，
+# 只在元素之间 join 成 %0A、元素**内部**的裸换行原样漏了出去，于是 ::error:: 那一行被从中间
+# 劈断——真因（"libglpk.so.xx: cannot open shared object file"）恰好在后半句，就这么丢了。
+flat = function(x) as.character(gsub("\r?\n", " | ", x))
 annotate = function(level, title, lines, keep = 30, max = 2600) {
-  lines = as.character(lines)
+  lines = flat(as.character(lines))
   if (length(lines) > keep) lines = lines[(length(lines) - keep + 1L):length(lines)]
-  txt = paste(c(title, lines), collapse = "%0A")
+  txt = paste(c(flat(title), lines), collapse = "%0A")
   if (nchar(txt) > max) txt = paste0("…(截断)", substring(txt, nchar(txt) - max))
   cat(sprintf("::%s::%s\n", level, txt), sep = "")
 }
@@ -355,18 +377,57 @@ if (flag("--mirror")) {
   quit(status = 0L)
 }
 
-# "缺"这个词盖住了两种完全不同的病：压根没装上，和**装前明明能加载、装完反而加载不了**
-# （高优先级库里新装的包把它依赖的版本遮了）。前者去看安装日志，后者日志里什么都没有——
-# 2026-09-26 ubuntu 就是这个形态：1079 行、171 个二进制解包、三次子进程 rc=0、kknn 名字零出现。
+# "缺"这个词盖住了至少三种完全不同的病，而修法互不相干：压根没装上（查安装日志）、
+# 装前能加载装完反而加载不了（查 .libPaths 顺序）、磁盘上明明有却 dlopen 不了（查系统库）。
+# 2026-09-26 ubuntu 第一轮读数（run 36220557575 / 后续 a6bd7e9）排掉了前两种：1062 行日志、
+# source=0 binary=0 win_unpacked=171、三个子进程全部 rc=0、kknn 名字零出现，
+# 而 kknn 的加载报错指向 /home/runner/work/_temp/Library/igraph/libs/igraph.so —— 第三种病。
 # requireNamespace(quietly = TRUE) 会把真实原因整个咽掉，所以这里换成 loadNamespace 取原文。
 why_missing = function(p) {
   # 注意是 loadNamespace(p)：它没有 character.only 这个参数（那是 library() 的），
   # 写错了会稳定返回 "unused argument"，一条看起来像真病因的假病因。
+  # 两个分支都必须以包名开头：下游靠"第一个空格前 = 包名"取名字去问 ldd，
+  # 成功分支不挂名就会把整句话当包名传下去（测试第 7 节抓到的）。
   r = try(loadNamespace(p), silent = TRUE)
-  if (!inherits(r, "try-error")) return("loadNamespace 这次成功了（= 顺序/瞬时问题，不是版本遮蔽）")
+  if (!inherits(r, "try-error")) return(paste0(p, " 加载其实正常（loadNamespace 这次成功了 = 顺序/瞬时问题）"))
   cnd = attr(r, "condition")
   msg = if (is.null(cnd)) paste(as.character(r), collapse = " ") else conditionMessage(cnd)
-  paste0(p, " 加载失败原文：", msg)
+  # flat 必须有：dlopen 的报错是两行，第二行才是真凶（"... libglpk.so.40: cannot open shared
+  # object file"）。2026-09-26 CI 上就是这里少了 flatten，一条 ::error:: 被从中间劈断，
+  # 我们只看见 "on load of shared object"，然后把真凶丢了整整一轮。
+  paste0(p, " 加载失败原文：", flat(msg))
+}
+
+# 磁盘上有、却加载不了 —— 和"压根没装上"是两种病，closure_missing() 的口径（看磁盘）抓不到它。
+# 抓手：把它自己的直接依赖逐个 loadNamespace 一遍，哪个加载不了就贴哪个的原文。真凶几乎从不是
+# 请求清单里的包，而是它某个"装着但坏了"的依赖（本次：kknn 报错 → 坏的是 igraph.so）。
+unloadable_deps = function(p) {
+  db = tryCatch(installed.packages(), error = function(e) NULL)
+  if (is.null(db) || !(p %in% rownames(db))) return(character(0))
+  pick = function(s) {
+    it = trimws(sub("\\(.*\\)", "", strsplit(as.character(s), ",")[[1]]))
+    it[nzchar(it)]
+  }
+  deps = union(pick(db[p, "Imports"]), pick(db[p, "Depends"]))
+  deps = setdiff(deps, c(bundled, "R", p, ""))
+  bad = vapply(deps, function(d) if (requireNamespace(d, quietly = TRUE)) NA_character_
+    else why_missing(d), character(1))
+  sort(unlist(bad[!is.na(bad)], use.names = FALSE))
+}
+
+# dlopen 说"cannot open shared object file"时，缺的是**系统库**，不是 R 包——光看 R 这一层
+# 永远差一次推送才知道是哪个 .so。unix 上 ldd 一步就能补齐：把它的输出里 "not found" 的行贴出来。
+# 这不是"让 CI 变绿的修法"，是让下一次红**自带完整病因**的读法；Windows 没有 ldd，返回空。
+ldd_missing = function(p) {
+  if (!identical(.Platform$OS.type, "unix")) return(character(0))
+  d = tryCatch(find.package(p, quiet = TRUE), error = function(e) character(0))
+  if (!length(d)) return(character(0))
+  so = list.files(file.path(d, "libs"), pattern = "[.](so|dylib)$", full.names = TRUE)
+  unlist(lapply(so, function(f) {
+    o = tryCatch(system2("ldd", shQuote(f), stdout = TRUE, stderr = TRUE), error = function(e) character(0))
+    bad = grep("not found", flat(o), value = TRUE)
+    if (length(bad)) paste0(basename(f), ": ", trimws(bad)) else character(0)
+  }), use.names = FALSE)
 }
 
 if (flag("--install")) {
@@ -400,11 +461,22 @@ if (flag("--install")) {
     length(lg), n_src, n_bin, n_win, paste(sprintf("%s:%s", names(install_rc), install_rc), collapse = " ")))
   # 子进程的回执（装进了哪个库、用的哪套仓库、装前装后各自能不能加载）单独成条：它是区分
   # "装到别处去了"和"真的装不上"的唯一证据，混在形态计数里就没人会去读。
-  tgt = grep("^TARGET_LIB:|^REPOS_USED|^REPOS_REQUESTED|^BEFORE_INSTALL:|^AFTER_INSTALL:", lg, value = TRUE)
-  if (length(tgt)) annotate("notice", "安装子进程回执", tgt, keep = 12L)
+  tgt = grep("^TARGET_LIB:|^REPOS_USED|^REPOS_REQUESTED|^BEFORE_INSTALL:|^AFTER_INSTALL:|^UNLOADABLE_",
+    lg, value = TRUE)
+  if (length(tgt)) annotate("notice", "安装子进程回执", tgt, keep = 16L)
 
-  # 装前能加载、装完反而加载不了 = 遮蔽/依赖版本对不上，不是"装不上"。这一刀必须单独报：
-  # 它决定的修法完全不同（前者调 .libPaths 顺序或锁版本，后者换通道）。
+  # 全库普查结果单独成条，而且**成功也要报**：清单里的包都能加载、但库里躺着一个加载不了的
+  # 依赖 = 下一次换个包就会红的潜伏病灶（本轮的 igraph 就是这个形态）。
+  unc = sort(unique(unlist(strsplit(sub("^UNLOADABLE_[A-Z]+: ?", "",
+    grep("^UNLOADABLE_[A-Z]+: \\S", lg, value = TRUE)), " ", fixed = TRUE), use.names = FALSE)))
+  if (length(unc))
+    annotate("warning", sprintf("磁盘上装着、但加载不了的包（安装清单未必用到它，但它就是下一次红的病灶）: %s",
+      paste(unc, collapse = ", ")), character(0), keep = 0)
+
+  # 三类病里的第二类：装前能加载、装完反而加载不了（多半是新装的高优先级库把它遮了）。
+  # 单独报是因为修法完全不同（这类调 .libPaths 顺序或锁版本；第一类换通道；第三类装系统库）。
+  # 如实记：2026-09-26 ubuntu 那一轮这一类是**空的**（kknn 装前就加载不了），
+  # 所以我先前把"遮蔽"当成结论写进文档，是猜的——它被 BEFORE/AFTER 两行读数直接否掉了。
   flip = need[pre & !installed(need)]
   if (length(flip)) {
     annotate("error", sprintf("装前可加载、装完反而加载不了（= 被新装的高优先级库遮蔽，不是没装上）: %s",
@@ -423,25 +495,50 @@ if (flag("--install")) {
       paste(fixed_by_retry, collapse = ", ")), character(0), keep = 0)
   cat("\n装完复核：仍缺失 =", if (length(still)) paste(still, collapse = ", ") else "无", "\n")
   if (length(still_hard)) {
-    # 头条必须先给"哪些硬依赖没装上"：下面那些上下文再详细，读者也要第一眼看到结论
-    annotate("error", sprintf("硬依赖安装失败: %s", paste(still_hard, collapse = ", ")),
-      character(0), keep = 0)
-    # 先点名传递依赖：need 里"没装上"的包往往只是受害者，日志里真正报错的是它的依赖
-    cm = closure_missing(still_hard)
+    # 头条必须说实话。"硬依赖安装失败"盖住了两种病：磁盘上根本没有（那是安装失败），
+    # 和磁盘上有、shared object 却 dlopen 不了（那是环境问题，装一百遍也一样红）。
+    # 2026-09-26 ubuntu 属于后者，而我们按前者猜了两轮。
+    on_disk = still_hard[still_hard %in% rownames(installed.packages())]
+    absent = setdiff(still_hard, on_disk)
+    if (length(absent))
+      annotate("error", sprintf("硬依赖没装上（磁盘上没有）: %s", paste(absent, collapse = ", ")),
+        character(0), keep = 0)
+    if (length(on_disk))
+      annotate("error", sprintf("硬依赖已安装但加载不了（磁盘上有，不是安装失败 → 查运行环境/依赖库）: %s",
+        paste(on_disk, collapse = ", ")), character(0), keep = 0)
+    # 已装装不上的那些，直接点名是它哪个依赖坏了；没装上的那些，先点名传递依赖：need 里
+    # "没装上"的包往往只是受害者，日志里真正报错的是它的依赖
+    for (p in on_disk) {
+      ud = unloadable_deps(p)
+      lines = if (length(ud)) ud else why_missing(p)
+      # 坏依赖的名字从原文行里取回来（只取"加载失败"的那些；"其实正常"的那些不必问 ldd），
+      # 再各自 ldd 一次：一次推送同时给出"哪个包坏了"和"它缺哪个系统库"，不必再红一轮
+      bad_pkgs = sub(" .*", "", ud[grepl("加载失败原文", ud, fixed = TRUE)])
+      for (b in bad_pkgs) {
+        lb = ldd_missing(b)
+        if (length(lb)) lines = c(lines, sprintf("ldd[%s] 缺的系统库: %s", b, paste(lb, collapse = " ; ")))
+      }
+      annotate("error", sprintf("[%s] 已安装但加载不了（往下钻一层的结果）：", p), lines, keep = 12L)
+    }
+    # closure_missing 的口径是"磁盘上没有"，所以只对 absent 那组有意义（on_disk 那组磁盘上
+    # 全都有，拿它问会得到"什么都不缺"——上一轮就是这么被自己的工具骗过去的）
+    cm = closure_missing(absent)
     if (length(cm))
       annotate("error", sprintf("硬依赖 %s 的传递依赖里还缺: %s（真凶多半在这里）",
-        paste(still_hard, collapse = ", "), paste(cm, collapse = ", ")), character(0), keep = 0)
+        paste(absent, collapse = ", "), paste(cm, collapse = ", ")), character(0), keep = 0)
     for (p in union(still_hard, cm)) {
       blk = pkg_block(lg, p)
       if (length(blk)) { annotate("error", sprintf("[%s] 安装段尾部：", p), blk); next }
-      # 该包没有自己的安装段 = 根本没轮到它（通常是被上面某段的 ERROR 连坐），
-      # 或者它压根没进过请求清单——这时唯一的线索就是当场加载一次看它说什么。
-      annotate("warning", sprintf("[%s] 日志里没有它的安装段（未轮到安装）| %s", p,
+      # 没有自己的安装段有两种：压根没轮到它（被别的 ERROR 连坐），或者——这次的真凶——
+      # 磁盘上已经有一个加载不了的它：install.packages 只看"装没装过"，装了就直接跳过，
+      # 于是重试永远修不好这类包，日志里也永远干净。这一句必须写明，否则"日志无报错行 = 无病因"。
+      annotate("warning", sprintf("[%s] 日志里没有它的安装段：%s | %s", p,
+        if (p %in% on_disk) "磁盘上已存在 → install.packages 直接跳过（重试无效）" else "未轮到安装",
         if (p %in% still_hard) why_missing(p) else "传递依赖，未单独请求"), character(0), keep = 0)
     }
     ew = err_window(lg)
     if (length(ew)) annotate("error", "安装日志里的报错行（连上下文）：", ew, keep = 60L)
-    else annotate("warning", "日志里没有匹配到任何报错行：失败形态不是编译错，看下面的 rc/形态计数",
+    else annotate("warning", "日志里没有匹配到任何报错行：这类失败不是编译错，而是装完加载不了（见上面的加载失败原文）",
       character(0), keep = 0)
     quit(status = 1L)
   }
