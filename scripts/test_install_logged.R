@@ -268,4 +268,23 @@ cat("剥完剩下 =", paste(sort(nm9), collapse = ", "), "\n")
 # 没加这道过滤时实测会漏出 "1.2" / "4.0" / "0.1"（版本号被当成包名）——单独跑 §9 时抓到的
 stopifnot(setequal(nm9, c("A", "B", "C", "D", "E")), !any(grepl("[()>=]", nm9)))
 
+cat("\n=== 10) 定义顺序：install_logged 用到的常量必须早于它的首个调用点 ===\n")
+# 这是 2026-09-26 那次线上红的成因：bundled 定义在扫描段（原第 244 行），而锚点安装发生在扫描
+# **之前**（第 225 行）→ CI 干净机器第一步就 "object 'bundled' not found"。本机 todo=0、锚点也
+# 早已在场，install_logged 压根没被调用，于是四道门禁全绿。
+# 前面几节是"把定义抽进新环境再跑"，天生看不见顺序问题——所以这条单独按顶层表达式顺序量。
+txt = vapply(top, function(x) paste(deparse(x), collapse = " "), character(1))
+lho = vapply(top, lhs, character(1))   # 顶层赋值左边的名字（lhs 只吃单个表达式，不能喂整个列表）
+call_i = which(grepl("install_logged(", txt, fixed = TRUE))
+call_i = setdiff(call_i, which(lho == "install_logged"))   # 排除它自己的定义
+stopifnot(length(call_i) > 0L)   # 一个调用点都没有 = 结构变了，这条尺得跟着重写
+used = c("bundled", "repos_all", "rscript_bin", "artifact_dir", "dep1")
+def_i = vapply(used, function(nm2) {
+  i = which(lho == nm2)
+  if (length(i)) min(i) else NA_integer_
+}, integer(1))
+cat(sprintf("首个调用 = 第 %d 个顶层表达式 | 定义位置: %s\n", min(call_i),
+  paste(sprintf("%s=%s", used, def_i), collapse = " ")))
+stopifnot(!any(is.na(def_i)), all(def_i < min(call_i)))
+
 cat("\n全部断言通过\n")

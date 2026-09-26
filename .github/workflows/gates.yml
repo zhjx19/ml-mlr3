@@ -32,7 +32,21 @@ jobs:
           use-public-rspm: true
 
       - name: Install example deps (derived from the examples themselves)
-        run: Rscript scripts/list_example_deps.R --install --src scripts/verify_examples.R
+        shell: bash
+        run: |
+          # 同一条纪律用在门禁自己身上：这一步过去是裸 Rscript，R 会话死在 install_logged 之前
+          # （2026-09-26 实测：object 'bundled' not found，因为常量定义在调用点之后）时，
+          # 公开通道一个字都读不到——脚本自带的 ::error:: 根本没来得及打印，只剩一个状态灯。
+          # 所以：落盘 + 回显 + 「没跑到 deps 回执 = 中途死掉」的兜底 annotation。
+          set +o pipefail
+          if Rscript scripts/list_example_deps.R --install --src scripts/verify_examples.R > _deps.log 2>&1; then rc=0; else rc=$?; fi
+          cat _deps.log
+          # 注意不要再 grep 一遍 ^:: 的行：cat 已经把注解送进步骤输出，重复输出只会刷出重复公告
+          if [ "$rc" -ne 0 ] && ! grep -q "::notice::deps " _deps.log; then
+            echo "::error::依赖步骤未跑到回执（rc=$rc）= R 会话中途死掉，以下为日志尾部"
+            tail -12 _deps.log | sed 's/^/::error::/'
+          fi
+          exit $rc
 
       - name: Run skeleton regression (20 cases)
         shell: bash

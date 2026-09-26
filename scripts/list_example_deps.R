@@ -55,6 +55,12 @@ base_repos = local({
   r
 })
 repos_all = c(base_repos, universe_repos)
+# 随 R 发行，不该出现在安装清单里。**必须定义在 install_logged / closure_missing 之前**：
+# 2026-09-26 把它写在扫描段（第 244 行）那儿，而 install_logged 的普查要用它、锚点安装在扫描
+# 之前就发生——本机 todo=0 压根不调用 install_logged，于是全绿；CI 干净机器第一步就撞死在
+# "object 'bundled' not found"。顺序就是这类脚本的语义，测试第 10 节把它钉成断言。
+bundled = c("base", "compiler", "datasets", "grDevices", "graphics", "methods",
+  "parallel", "splines", "stats", "tcltk", "tools", "codetools", "utils")
 installed = \(p) vapply(p, requireNamespace, logical(1), quietly = TRUE)
 
 # ── 安装必须自带病因 ────────────────────────────────────────────────────────────
@@ -218,6 +224,25 @@ closure_missing = function(pkgs) {
   sort(setdiff(cl, inst))
 }
 
+# 本机复演 CI 的安装路径。为什么需要它：CI 干净机器第一步就是"装锚点"，而本机 todo=0、
+# 锚点也早已就位，install_logged 整条路径（子进程脚本拼装 + 普查 + 回执）在本机压根不跑——
+# 2026-09-26 那个 "object 'bundled' not found" 就是这么"本机四道全绿、线上一撞就死"的。
+# 用法：Rscript scripts/list_example_deps.R --install-probe fastmap
+# 它把临时库放到 .libPaths()[1]，只装那一个包，**绝不动用户库**；也不进 CI。
+probe_pkg = val("--install-probe", "")
+if (nzchar(probe_pkg)) {
+  probe_lib = tempfile("mlr3-probe-lib-")
+  dir.create(probe_lib, recursive = TRUE, showWarnings = FALSE)
+  .libPaths(c(probe_lib, .libPaths()))
+  cat("[probe] 目标库 =", .libPaths()[1], "| 装", probe_pkg, "（临时库，不动用户库）\n")
+  rc = install_logged(probe_pkg, "probe")
+  lg = read_log()
+  writeLines(grep("^TARGET_LIB:|^REPOS_USED|^REPOS_REQUESTED|^BEFORE_INSTALL:|^AFTER_INSTALL:|^UNLOADABLE_",
+    lg, value = TRUE))
+  cat(sprintf("[probe] rc = %s | 日志 %d 行\n", rc, length(lg)))
+  quit(status = if (identical(as.integer(rc), 0L)) 0L else 1L)
+}
+
 if (flag("--install")) {
   a_miss = anchor[!installed(anchor)]
   if (length(a_miss)) {
@@ -240,9 +265,7 @@ need_ml = installed("mlr3verse")
 
 src = unlist(lapply(src_files, \(f) readLines(f, warn = FALSE)))
 
-# 随 R 发行，不该出现在安装清单里
-bundled = c("base", "compiler", "datasets", "grDevices", "graphics", "methods",
-  "parallel", "splines", "stats", "tcltk", "tools", "codetools", "utils")
+# （bundled 已上移到 install_logged 之前——见那里那段顺序教训）
 
 # ── 1) 会被真正实例化的键 = 出现在字典构造函数所在**整行**上的字符串 ──────────────
 # 为什么按行而不是按"紧跟 fn( 的位置"：`lrns(c("classif.rpart", "classif.kknn"))` 里 kknn 不在
