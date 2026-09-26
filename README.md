@@ -37,20 +37,15 @@
 
 **前置条件**：R（建议 ≥ 4.2）+ `mlr3verse`；跑 evals 评分器需 Node ≥ 18（可选）。零 API key，全部本地运行。
 
+入口只留两条：**skills.sh**（一条命令）与 **GitHub**（clone 后软链，适配任意 Agent 的 skills 目录）。
+
 方式一：skills.sh
 
 ```bash
 npx skills add zhjx19/ml-mlr3
 ```
 
-方式二：Claude Code plugin marketplace
-
-```text
-/plugin marketplace add zhjx19/ml-mlr3
-/plugin install ml-mlr3@ml-mlr3
-```
-
-方式三：手动链接进任意 Agent 的 skills 目录（ZCode / Claude Code / OpenCode 均适用）
+方式二：GitHub（ZCode / Claude Code / OpenCode 等只要读 skills 目录的都适用）
 
 ```bash
 git clone https://github.com/zhjx19/ml-mlr3.git
@@ -119,7 +114,7 @@ ml-mlr3/
 │   └── replay/                # 四份真实对照答案（baseline-* / skilled-*），可被上面两个评分器直接吃
 ├── evals/outputs/             # 评测回答存放处（eval-<id>.md）
 └── .github/workflows/
-    └── gates.yml              # CI：全量 20 例（ubuntu + windows）+ 断言引擎自检
+    └── gates.yml              # CI：全量 20 例（ubuntu + windows）+ 全库幻觉键体检 + 断言引擎自检
 ```
 
 ## 验证与测试

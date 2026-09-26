@@ -2,6 +2,14 @@
 
 本仓库遵循「发版讲清为什么改」的迭代纪律：每个版本记录动机，不只是改动清单。
 
+## [Unreleased] — 2026-09-26 · 门禁给自己量了一次尺
+
+### Fixed
+- **CI 的失败诊断路径（`.github/workflows/gates.yml` step 5/6）**。为什么改：v2.3.0 推上去之后 CI 双平台红在骨架回归那一步，但公开通道一条病因都没留下——`api.github.com` 上 `/logs` 要仓库权限（403），只有 check-run 的 annotations 能读，而 annotations 是空的。根因是门禁自己的写法：GitHub 的 bash 默认 `set -eo pipefail`，`Rscript … | tee log` 里 Rscript 非 0 会当场掐掉这一步，后面的 `grep` 永远跑不到。**量别人纪律的尺，自己先犯了静默失败**——这正是本 skill 红线里"绿色的 CI 会撒谎"的镜像版本（红的 CI 也会撒谎，它只说不红的原因）。现在两步都不走管道（重定向到文件，退出码直接是 R 的），并补一条"没跑到汇总行 = R 会话中途死掉"的兜底分支，把日志尾部逐行写成 `::error::`。三种情形用假日志在 `set -eo pipefail` 下实测通过：有汇总+FAIL 出 error annotation、中途死掉出兜底 annotation、全 PASS 干净退出。顺带修掉 `setup-r` 的无效输入 `use-public-cloud` → `use-public-rspm`（这条告警本身也是从 annotations 里读到的）。
+
+### Changed
+- **安装入口收敛为两条：skills.sh 与 GitHub**（README「快速开始」删去 Claude Code plugin marketplace 通道）。为什么改：三条通道里，marketplace 那条既没有实测过的安装回执，也要在仓库里额外维护一份和 SKILL.md 平行的版本元数据——历史上它已经出过一次"两个通道版本号各说各话"。入口越少，能兑现的承诺越实。`.claude-plugin/` 文件暂留（不影响任何门禁），若确认不再走该通道即删。
+
 ## [2.3.0] — 2026-09-26 · 把"证据"变成仓库里的可见产物
 
 ### Added
