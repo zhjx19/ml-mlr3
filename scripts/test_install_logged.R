@@ -18,7 +18,7 @@ dir.create(tmp_lib, recursive = TRUE, showWarnings = FALSE)
 # 注意：这里要跟着脚本一起改。install_logged 现在依赖 artifact_dir 与 dep1，
 # 漏一个就是"object not found"，而那种失败长得像 machinery 坏了。
 want = c("install_logged", "read_log", "annotate", "pkg_block", "around", "err_pat",
-  "err_window", "closure_missing", "installed", "install_logs", "install_rc",
+  "err_window", "closure_missing", "why_missing", "installed", "install_logs", "install_rc",
   "rscript_bin", "artifact_dir", "dep1", "repos_all", "base_repos", "universe_repos", "bundled")
 top = parse(script)
 lhs = function(x) if (is.call(x) && length(x) > 1L && identical(x[[1]], as.name("=")))
@@ -87,10 +87,26 @@ writeLines(paste("  |", readLines(genf, warn = FALSE)))
 stopifnot(!inherits(try(parse(genf), silent = TRUE), "try-error"))
 lg2 = e$read_log()
 stopifnot(!any(grepl("unexpected symbol", lg2, fixed = TRUE)))
-tgt2 = grep("^TARGET_LIB:|^REPOS_USED:", lg2, value = TRUE)
+tgt2 = grep("^TARGET_LIB:|^REPOS_USED|^REPOS_REQUESTED", lg2, value = TRUE)
 cat(sprintf("子进程回执 %d 条 | rc = %s\n", length(tgt2), bad))
 writeLines(paste("  |", tgt2))
 stopifnot(length(tgt2) >= 2L)
+# 装前/装后各报一次状态，是"日志 1079 行、171 个二进制解包、rc=0、而目标包名字零出现"
+# 那种形态唯一的抓法——它说明根本没请求过这个包，而不是请求了没装上。
+b4 = grep("^BEFORE_INSTALL:", lg2, value = TRUE)
+af = grep("^AFTER_INSTALL:", lg2, value = TRUE)
+cat(sprintf("装前 %s | 装后 %s\n", b4, af))
+stopifnot(length(b4) == 1L, length(af) == 1L,
+  any(grepl("nosuchpkgqq123=MISS", b4, fixed = TRUE)),
+  any(grepl("nosuchpkgqq123=MISS", af, fixed = TRUE)))
+# 仓库回执必须是"每个子进程一条、三套仓库压在同一行"——paste 按元素循环会把它劈成
+# 多行并且把 option 的第 i 个仓库配成 requested 的第 i 个（CI 上就这么被骗过一次）
+rq = grep("^REPOS_REQUESTED:", lg2, value = TRUE)
+op = grep("^REPOS_USED\\(option\\):", lg2, value = TRUE)
+cat(sprintf("REPOS_REQUESTED 行数 = %d | REPOS_USED(option) 行数 = %d\n", length(rq), length(op)))
+stopifnot(length(rq) == 1L, length(op) == 1L)
+stopifnot(sum(grepl("https://", rq)) == 1L)   # 单行含三个 URL，不是三行
+writeLines(paste("  |", rq))
 # 装的是不存在的包：允许 rc=0（install.packages 只警告）或非零，但不允许"语法碎"
 assign("repos_all", c(TUNA = "https://mirrors.tuna.tsinghua.edu.cn/CRAN"), envir = e)
 assign("install_logs", character(0), envir = e)
@@ -150,5 +166,15 @@ d = capture.output(assign("cm_bad", e$closure_missing("kknn"), envir = e))
 cat(sprintf("返回值长度 = %d | 输出: %s\n", length(e$cm_bad), paste(d, collapse = " / ")))
 stopifnot(length(e$cm_bad) == 0L, any(grepl("^::warning::", d)))
 assign("available.packages", utils::available.packages, envir = e)
+
+cat("\n=== 6) why_missing：把 requireNamespace(quietly=TRUE) 咽掉的原文捞回来 ===\n")
+# "缺"有两种病：压根没装上，和装前能加载、装完反而加载不了（被高优先级库遮蔽）。
+# 后者在安装日志里一个字都没有，只有当场 load 一次才说得出原因——所以这条必须有原文。
+w = e$why_missing("nosuchpkgqq123")
+cat(" 不存在的包 ->", w, "\n")
+stopifnot(grepl("加载失败原文", w, fixed = TRUE), nchar(w) > 25L)
+ok = e$why_missing("fastmap")   # 第 1 步刚装进临时库，父会话看得见
+cat(" 已装的包   ->", ok, "\n")
+stopifnot(grepl("成功了", ok, fixed = TRUE))
 
 cat("\n全部断言通过\n")

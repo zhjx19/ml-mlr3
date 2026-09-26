@@ -96,8 +96,21 @@ install_logged = function(pkgs, tag) {
     # 两条都要：getOption("repos") 是 runner 的站点配置（本机默认是占位符 @CRAN@），
     # 而真正传给 install.packages 的是父会话算出来的那套。只报前者，在 CI 上会读成
     # "仓库是 @CRAN@"这种压根不存在的东西；只报后者，就看不出 runner 本身配了什么。
-    sprintf('writeLines(paste("REPOS_USED:", getOption("repos"), "| 实际请求:", %s))', dep1(repos_all)),
-    sprintf('install.packages(%s, repos = %s, Ncpus = 4L)', dep1(pkgs), dep1(repos_all)),
+    # 注意别写成 paste("x:", getOption("repos"), "y:", rq) —— paste 会按**元素**循环，
+    # 长度不同时把"配置里的第 i 个仓库"和"请求的第 i 个仓库"配成假一对（2026-09-26 CI
+    # 实测就被这样骗过一次：读出来是 posit.co 配 r-universe）。所以两边都先 collapse。
+    'writeLines(paste("REPOS_USED(option):", paste(getOption("repos"), collapse = " ; ")))',
+    sprintf('rq = %s', dep1(repos_all)),
+    'writeLines(paste("REPOS_REQUESTED:", paste(if (is.null(names(rq))) "" else paste0(names(rq), "="), rq, sep = "", collapse = " ; ")))',
+    # 装前/装后各报一次可加载状态：2026-09-26 ubuntu 的形态是"日志 1079 行、171 个二进制解包、
+    # 三次子进程全 rc=0、而 kknn 的名字一次都没出现"——那是"它压根没被请求安装"，
+    # 只有这一个原因：它在装之前是**能加载**的（runner 预装库里有），装完反而加载不了。
+    # 这个翻转在本脚本外面看不见（todo 就是按装前状态算的），必须由子进程同一进程内报出来。
+    sprintf('pkgs = %s', dep1(pkgs)),
+    'st8 = function(v) paste0(v, "=", ifelse(vapply(v, requireNamespace, logical(1), quietly = TRUE), "OK", "MISS"))',
+    'writeLines(paste("BEFORE_INSTALL:", paste(st8(pkgs), collapse = " ")))',
+    'install.packages(pkgs, repos = rq, Ncpus = 4L)',
+    'writeLines(paste("AFTER_INSTALL:", paste(st8(pkgs), collapse = " ")))',
     'quit(status = 0L)'
   ), exprf)
   # 生成的子进程脚本必须先能 parse：不检查的话，语法碎掉表现为"包全都装不上"，
@@ -342,10 +355,25 @@ if (flag("--mirror")) {
   quit(status = 0L)
 }
 
+# "缺"这个词盖住了两种完全不同的病：压根没装上，和**装前明明能加载、装完反而加载不了**
+# （高优先级库里新装的包把它依赖的版本遮了）。前者去看安装日志，后者日志里什么都没有——
+# 2026-09-26 ubuntu 就是这个形态：1079 行、171 个二进制解包、三次子进程 rc=0、kknn 名字零出现。
+# requireNamespace(quietly = TRUE) 会把真实原因整个咽掉，所以这里换成 loadNamespace 取原文。
+why_missing = function(p) {
+  # 注意是 loadNamespace(p)：它没有 character.only 这个参数（那是 library() 的），
+  # 写错了会稳定返回 "unused argument"，一条看起来像真病因的假病因。
+  r = try(loadNamespace(p), silent = TRUE)
+  if (!inherits(r, "try-error")) return("loadNamespace 这次成功了（= 顺序/瞬时问题，不是版本遮蔽）")
+  cnd = attr(r, "condition")
+  msg = if (is.null(cnd)) paste(as.character(r), collapse = " ") else conditionMessage(cnd)
+  paste0(p, " 加载失败原文：", msg)
+}
+
 if (flag("--install")) {
   # 只补缺失的：CI 干净机器上 need 基本全缺，等于全装；本机则不会去动一套已经跑通的库
   # （install.packages 对已装包会尝试升级，可能把刚验证过的环境换掉）
-  todo = need[!installed(need)]
+  pre = installed(need)
+  todo = need[!pre]
   cat("\n=== 安装（缺失 ", length(todo), "/", length(need), " 个）===\n")
   if (length(todo)) install_logged(todo, "deps")
 
@@ -370,10 +398,20 @@ if (flag("--install")) {
   n_win = sum(vapply(lg, function(l) grepl("successfully unpacked", l, fixed = TRUE), logical(1)))
   cat(sprintf("::notice::install log lines=%d source=%d binary=%d win_unpacked=%d rc=%s\n",
     length(lg), n_src, n_bin, n_win, paste(sprintf("%s:%s", names(install_rc), install_rc), collapse = " ")))
-  # 子进程的回执（装进了哪个库、用的哪套仓库）单独成条：它是区分"装到别处去了"和
-  # "真的装不上"的唯一证据，混在形态计数里就没人会去读。
-  tgt = grep("^TARGET_LIB:|^REPOS_USED:", lg, value = TRUE)
-  if (length(tgt)) annotate("notice", "安装子进程回执", tgt, keep = 6L)
+  # 子进程的回执（装进了哪个库、用的哪套仓库、装前装后各自能不能加载）单独成条：它是区分
+  # "装到别处去了"和"真的装不上"的唯一证据，混在形态计数里就没人会去读。
+  tgt = grep("^TARGET_LIB:|^REPOS_USED|^REPOS_REQUESTED|^BEFORE_INSTALL:|^AFTER_INSTALL:", lg, value = TRUE)
+  if (length(tgt)) annotate("notice", "安装子进程回执", tgt, keep = 12L)
+
+  # 装前能加载、装完反而加载不了 = 遮蔽/依赖版本对不上，不是"装不上"。这一刀必须单独报：
+  # 它决定的修法完全不同（前者调 .libPaths 顺序或锁版本，后者换通道）。
+  flip = need[pre & !installed(need)]
+  if (length(flip)) {
+    annotate("error", sprintf("装前可加载、装完反而加载不了（= 被新装的高优先级库遮蔽，不是没装上）: %s",
+      paste(flip, collapse = ", ")), character(0), keep = 0)
+    annotate("error", "加载失败原文（requireNamespace(quietly=TRUE) 会把它整个咽掉）：",
+      vapply(flip, why_missing, character(1)), keep = 12L)
+  }
 
   still = need[!installed(need)]
   # 装完再认一次软锚点：CI 上它多半是这一步才从 r-universe 落下来的
@@ -396,8 +434,10 @@ if (flag("--install")) {
     for (p in union(still_hard, cm)) {
       blk = pkg_block(lg, p)
       if (length(blk)) { annotate("error", sprintf("[%s] 安装段尾部：", p), blk); next }
-      # 该包没有自己的安装段 = 根本没轮到它（通常是被上面某段的 ERROR 连坐）
-      annotate("warning", sprintf("[%s] 日志里没有它的安装段（未轮到安装）", p), character(0), keep = 0)
+      # 该包没有自己的安装段 = 根本没轮到它（通常是被上面某段的 ERROR 连坐），
+      # 或者它压根没进过请求清单——这时唯一的线索就是当场加载一次看它说什么。
+      annotate("warning", sprintf("[%s] 日志里没有它的安装段（未轮到安装）| %s", p,
+        if (p %in% still_hard) why_missing(p) else "传递依赖，未单独请求"), character(0), keep = 0)
     }
     ew = err_window(lg)
     if (length(ew)) annotate("error", "安装日志里的报错行（连上下文）：", ew, keep = 60L)
