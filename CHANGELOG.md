@@ -2,7 +2,7 @@
 
 本仓库遵循「发版讲清为什么改」的迭代纪律：每个版本记录动机，不只是改动清单。
 
-## [2.5.0] — 2026-10-07 · 可视化小节补齐（mlr3viz 点名 + 场景→图决策表 + 活体实跑）
+## [2.5.0] — 2026-10-07 · 发布（可视化小节补齐：mlr3viz 点名 + 场景→图决策表 + 活体实跑）
 
 ### Fixed
 - **`references/evaluation.md` §5 回归可视化代码块在 skill 自己的最小环境下跑不通**。为什么改：那段用裸名 `ggplot()` / `aes()` / `geom_point()` / `mutate()` 手写散点图与残差图，而 `library(mlr3verse)` **既不 attach ggplot2 也不 attach dplyr**——本机逐字复刻实跑，两块都报 `could not find function "ggplot"`（`autoplot` 能用只是因为 mlr3verse 把它再导出了，`ggplot2` 在 `search()` 里根本没有）。SKILL.md 第 271 行当时正把读者指向这段写法。更根本的是**这段手写代码本来就是多余的**：mlr3viz 的 `autoplot(PredictionRegr)` 自带 `xy`（默认）/ `residual` / `histogram` / `confidence` 四类图。现改为原生调用，并补一句"确实要自己加图层时必须 `library(ggplot2)` 或 `ggplot2::` 前缀"。
@@ -33,6 +33,7 @@
 - 未做的事：未改 `gates.yml` 的步骤结构（新用例随既有步骤自动跑）；未把 mlr3viz 的**全部** 24 个 S3 方法写进正文（聚类 `TaskClust`/`PredictionClust`/`LearnerClust*` 与 `EnsembleFSResult`/`OptimInstanceBatchSingleCrit` 超出本 skill 的分类/回归主线，仅在资产转录里留清单）。
 
 ### 发布与本地部署同步
+- **tag `v2.5.0` 已打并推送**（annotated，指向 `dc9d3f3` = CI run #17 验证过的那一版；三 job 全 success：verify-examples ubuntu / windows + evals-selftest）。守仓库纪律"三 job 全绿后才打"：本版因可视化用例的环境耦合连红三轮（#14 / #15 / #16），修完 #17 转绿才打。推送途中 GitHub 对**只推 tag** 回了一次 500（`Internal Server Error`，SSH 与 HTTPS 皆然），退避重试 + 显式 refspec 后成功——服务端瞬时故障，非仓库问题（同期的分支推送一直是好的）。**本条目写在 tag 之后**，故 tag 指向的那一版 CHANGELOG 尚无此行，特此说明。
 - **版本号 2.4.0 → 2.5.0**（minor：新增回归用例 21、新增 `references/evaluation.md` §4–§6 与 §6.5 对照表、新增 `assets/viz-matrix-2026-10-07.txt`；无破坏性改动）。三处同步：`SKILL.md` frontmatter / README「当前发布版本」段 / 本 CHANGELOG 条目——由 `verify_examples.R` 开头的元数据自检把关（本轮实跑输出 `[OK] 版本自洽 v2.5.0`）。
 - **本地部署同步（非仓库改动，记此备查）**：`.qoder-cn/skills/ml-mlr3` 原为与源同 commit（`8809ec3`）、工作树干净的独立 clone（`git status` 空、该 commit 已在 `origin/main` 上），本轮**删除并改为指向源的 Junction**，与其他 5 份一致：`.claude` / `.codex` 本就是 Junction，`.workbuddy` / `.zcode` / `.openclaw-autoclaw` 本就是 SymbolicLink——6 份全部指向 `.config/opencode/skills/ml-mlr3`，此后源改一处、6 个 runtime 同步生效，不再有"多份副本各说各话"的风险。
 - **仓库外的临时备份也转为链接**：`.openclaw-autoclaw/workspace/.openclaw/tmp/mlr3-ac-backup/ml-mlr3`（停留在 v2.1.1 / 2026-09-22 的旧 clone，无独有提交，唯一未跟踪文件是 175 字节的 `_store_meta.json` 本地安装存根）已删除并改为 Junction；该元数据已留档到 `%TEMP%\opencode\mlr3-ac-backup_store_meta.json` 以防万一。
