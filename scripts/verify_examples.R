@@ -702,7 +702,11 @@ results = c(
     stopifnot(render_ok(autoplot(pred_v, type = "threshold", measure = msr("classif.fbeta"))))
     stopifnot(render_ok(autoplot(rr_v, type = "boxplot", measure = msr("classif.auc"))))
     stopifnot(render_ok(autoplot(rr_v, type = "histogram", bins = 10)))
-    if (requireNamespace("precrec", quietly = TRUE)) {           # mlr3viz Suggests，非硬依赖
+    if (requireNamespace("precrec", quietly = TRUE)) {
+      # 这一行不只是探针：扫描器只认「字典键 $packages / 正文里的双冒号前缀 / 整包挂载」三种形态，
+      # 被 requireNamespace 守卫的包**只有同时出现在 need 里**才会进安装集。写不写 `precrec::`
+      # 决定 CI 装不装它、也就是决定下面三条断言在 CI 上是真跑还是静默 SKIP。
+      stopifnot(is.function(precrec::evalmod))
       stopifnot(render_ok(autoplot(pred_v, type = "roc")))
       stopifnot(render_ok(autoplot(pred_v, type = "prc")))
       stopifnot(render_ok(autoplot(rr_v$prediction(), type = "roc")))
@@ -729,10 +733,11 @@ results = c(
     }
     # marginal / parameter 返回 patchwork 对象（mlr3viz 的 Suggests）；干净机器上没装时
     # **调用即报** `The following packages could not be loaded: patchwork`。
-    # 真实教训：本条用例第一次推上去，CI 双平台就是红在这里——本机装着 patchwork（别处带来的），
-    # 而它既不出现为 patchwork:: 也不出现为 library()，扫描器看不见，于是没进依赖清单。
-    # 与本仓库其它可选后端（precrec / ranger）同法守卫：缺失只跳过这两条，不吞掉其余断言。
+    # 真实教训（CI run #14/#15 双平台红）：本机装着 patchwork（别处带来的），干净库里没有，而扫描器
+    # 看不见这个**运行期内部**的依赖，于是没进清单。下面守卫里那行 `patchwork::wrap_plots` 是**故意**的
+    # 依赖钉——它既是探针，也让扫描器把 patchwork 收进 need → CI 真装上；删它 = 这两条断言退回 CI 静默 SKIP。
     if (requireNamespace("patchwork", quietly = TRUE)) {
+      stopifnot(is.function(patchwork::wrap_plots))
       stopifnot(render_ok(autoplot(inst_v, type = "marginal", cols_x = "cp")))
       stopifnot(render_ok(autoplot(inst_v, type = "parameter")))
       # 文档 §6.3/§6.6 说 marginal/parameter 返回 DelayedPatchworkPlot（ggsave 不适用，须 print + 设备）。
@@ -756,8 +761,13 @@ results = c(
     expect_err(autoplot(flt_v, type = "barplot"), "Must be element of set {'boxplot'}")
 
     # 6) 前置条件报错契约（文档 §6.5 对照表的字面量）
+    #    roc/prc 的两条"理论契约"被 mlr3viz 的**依赖检查前置**挡了一层：本机有 precrec 时先撞
+    #    predict_type / 多任务校验；干净机器（CI）没装 precrec 时先撞
+    #    "The following packages could not be loaded: precrec"。两种环境的原文都要钉住，
+    #    否则断言就退化成"本机绿、CI 红"的环境耦合——本轮真事故（run #16 红在这条）。
+    has_precrec = requireNamespace("precrec", quietly = TRUE)
     expect_err(autoplot(lrn("classif.rpart")$train(t_v)$predict(t_v), type = "roc"),
-               "Need predicted probabilities")
+               if (has_precrec) "Need predicted probabilities" else "precrec")
     expect_err(autoplot(pred_rg, type = "confidence"), "predict_type = 'se'")
     expect_err(autoplot(resample(t_v, l_v, rsmp("cv", folds = 3L)), type = "prediction"),
                "store_models = TRUE")
@@ -765,7 +775,7 @@ results = c(
     expect_err(autoplot(lrn("classif.rpart")$train(t_wide), type = "prediction", task = t_wide),
                "two features")
     bmr_v = benchmark(benchmark_grid(tsks(c("sonar", "penguins")), l_v, rsmp("cv", folds = 3L)))
-    expect_err(autoplot(bmr_v, type = "roc"), "multiple tasks")
+    expect_err(autoplot(bmr_v, type = "roc"), if (has_precrec) "multiple tasks" else "precrec")
     expect_err(autoplot(pred_rg, theme = theme_bw()), "could not find function")
     TRUE
   })
