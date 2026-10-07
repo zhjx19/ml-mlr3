@@ -61,7 +61,7 @@ jobs:
           fi
           exit $rc
 
-      - name: Run skeleton regression (20 cases)
+      - name: Run skeleton regression (21 cases)
         shell: bash
         run: |
           # 红灯必须自带病因：CI 日志下载要仓库权限（/logs 返回 403 Must have admin rights），

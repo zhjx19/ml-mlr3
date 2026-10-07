@@ -724,20 +724,29 @@ results = c(
       resampling = rsmp("holdout"), measure = msr("classif.ce"),
       terminator = trm("evals", n_evals = 12L))
     tnr("random_search")$optimize(inst_v)
-    for (tp in c("performance", "incumbent", "parameter", "parallel")) {
+    for (tp in c("performance", "incumbent", "parallel")) {
       stopifnot(render_ok(autoplot(inst_v, type = tp)))
     }
-    stopifnot(render_ok(autoplot(inst_v, type = "marginal", cols_x = "cp")))
+    # marginal / parameter 返回 patchwork 对象（mlr3viz 的 Suggests）；干净机器上没装时
+    # **调用即报** `The following packages could not be loaded: patchwork`。
+    # 真实教训：本条用例第一次推上去，CI 双平台就是红在这里——本机装着 patchwork（别处带来的），
+    # 而它既不出现为 patchwork:: 也不出现为 library()，扫描器看不见，于是没进依赖清单。
+    # 与本仓库其它可选后端（precrec / ranger）同法守卫：缺失只跳过这两条，不吞掉其余断言。
+    if (requireNamespace("patchwork", quietly = TRUE)) {
+      stopifnot(render_ok(autoplot(inst_v, type = "marginal", cols_x = "cp")))
+      stopifnot(render_ok(autoplot(inst_v, type = "parameter")))
+      # 文档 §6.3/§6.6 说 marginal/parameter 返回 DelayedPatchworkPlot（ggsave 不适用，须 print + 设备）。
+      # 断言写成"非 ggplot 时必须是 patchwork 延迟对象"：上游若改成普通 ggplot，本条不误报，
+      # 但换成第三种类型时会红——那时文档的落盘建议要一起改。
+      p_par = autoplot(inst_v, type = "parameter")
+      if (!inherits(p_par, "ggplot")) stopifnot(inherits(p_par, "DelayedPatchworkPlot"))
+    }
     stopifnot(render_ok(autoplot(inst_v, type = "points", cols_x = c("cp", "minsplit"))))
-    stopifnot(render_ok(autoplot(inst_v, type = "parameter")))
-    # 文档 §6.3/§6.6 说 marginal/parameter 返回 DelayedPatchworkPlot（ggsave 不适用，须 print + 设备）。
-    # 断言写成"非 ggplot 时必须是 patchwork 延迟对象"：上游若改成普通 ggplot，本条不误报，
-    # 但换成第三种类型时会红——那时文档的落盘建议要一起改。
-    p_par = autoplot(inst_v, type = "parameter")
-    if (!inherits(p_par, "ggplot")) stopifnot(inherits(p_par, "DelayedPatchworkPlot"))
     # surface 需两个超参都是连续型：含整数超参时当前版本报类型转换错误（文档已记为限制）。
     # 双向容错：上游修好后 → 只要不报错即 PASS；报错则必须仍是同一条原文，措辞变了要人来看。
-    st = tryCatch({ autoplot(inst_v, type = "surface", cols_x = c("cp", "minsplit")); "ok" },
+    # 显式给 regr.featureless 当插值学习器，使这条断言不依赖 ranger（实测换学习器不影响该报错）。
+    st = tryCatch({ autoplot(inst_v, type = "surface", cols_x = c("cp", "minsplit"),
+                             learner = lrn("regr.featureless")); "ok" },
                   error = \(e) conditionMessage(e))
     if (!identical(st, "ok")) stopifnot(grepl("Incompatible types during auto-converting", st, fixed = TRUE))
 
