@@ -30,7 +30,9 @@
 
 ### 发布与本地部署同步
 - **版本号 2.4.0 → 2.5.0**（minor：新增回归用例 21、新增 `references/evaluation.md` §4–§6 与 §6.5 对照表、新增 `assets/viz-matrix-2026-10-07.txt`；无破坏性改动）。三处同步：`SKILL.md` frontmatter / README「当前发布版本」段 / 本 CHANGELOG 条目——由 `verify_examples.R` 开头的元数据自检把关（本轮实跑输出 `[OK] 版本自洽 v2.5.0`）。
-- **本地部署同步（非仓库改动，记此备查）**：`.qoder-cn/skills/ml-mlr3` 原为与源同 commit（`8809ec3`）、工作树干净的独立 clone（`git status` 空、该 commit 已在 `origin/main` 上），本轮**删除并改为指向源的 Junction**，与其他 5 份一致：`.claude` / `.codex` 本就是 Junction，`.workbuddy` / `.zcode` / `.openclaw-autoclaw` 本就是 SymbolicLink——6 份全部指向 `.config/opencode/skills/ml-mlr3`，此后源改一处、6 个 runtime 同步生效，不再有"多份副本各说各话"的风险。仓库外的两处独立副本（`Desktop/AI笔记/.../opencode skills/ml-mlr3` 与 `.openclaw-autoclaw/workspace/.openclaw/tmp/mlr3-ac-backup/`）本轮**未动**（前者是刻意的独立备份，后者是临时备份目录），是否一并转链接待用户定。
+- **本地部署同步（非仓库改动，记此备查）**：`.qoder-cn/skills/ml-mlr3` 原为与源同 commit（`8809ec3`）、工作树干净的独立 clone（`git status` 空、该 commit 已在 `origin/main` 上），本轮**删除并改为指向源的 Junction**，与其他 5 份一致：`.claude` / `.codex` 本就是 Junction，`.workbuddy` / `.zcode` / `.openclaw-autoclaw` 本就是 SymbolicLink——6 份全部指向 `.config/opencode/skills/ml-mlr3`，此后源改一处、6 个 runtime 同步生效，不再有"多份副本各说各话"的风险。
+- **仓库外的临时备份也转为链接**：`.openclaw-autoclaw/workspace/.openclaw/tmp/mlr3-ac-backup/ml-mlr3`（停留在 v2.1.1 / 2026-09-22 的旧 clone，无独有提交，唯一未跟踪文件是 175 字节的 `_store_meta.json` 本地安装存根）已删除并改为 Junction；该元数据已留档到 `%TEMP%\opencode\mlr3-ac-backup_store_meta.json` 以防万一。
+- **Desktop 独立副本（`Desktop/AI笔记/学习/opencode skills/ml-mlr3`）本轮未动，待用户定**：它停在 `8809ec3` / v2.4.0、无独有提交、工作树干净，与源只有"最新几个提交"的差距——技术上同样是可删的陈旧克隆，但它的**位置语义是"备份"**，而 Junction 指向源、源坏它一起坏，转换等于取消备份。是转链接还是保留独立 clone，等用户明确。
 
 ## [2.4.0] — 2026-09-26 · 发布（门禁四次量尺 + README 修正 / 英文版 / 证据卡 / 系统前置）
 
