@@ -1,0 +1,115 @@
+# ml-mlr3 · mlr3viz 可视化目录矩阵（实跑转录，Windows / R 4.6.1）
+
+来源：2026-10-07 本轮打磨会话的逐项实跑。全部命令在**只 `library(mlr3verse)`** 的最小环境下执行
+（不额外 attach ggplot2 / dplyr，复刻 SKILL.md 骨架的运行条件）。
+
+## 0. 环境与依赖归属
+
+$ Rscript -e 'suppressMessages(library(mlr3verse)); packageVersion("mlr3viz")'
+  mlr3viz 0.11.2 | ggplot2 4.0.3 | ggplot2 attached: FALSE
+
+mlr3verse 0.4.0 的 Imports 含 `mlr3viz (>= 0.10.0)` —— **硬依赖，随装随有**。
+mlr3viz 的 Imports：checkmate, data.table, ggplot2 (>= 3.3.0), mlr3misc, scales, stats, utils, viridis
+mlr3viz 的 Suggests：bbotk, clue, cluster, **GGally**, ggdendro, **ggfortify**, **ggparty**, glmnet, knitr, lgr,
+  mlr3cluster, mlr3filters, mlr3fselect, **mlr3inferr**, mlr3learners, mlr3tuning, paradox, partykit,
+  **patchwork**, **precrec**, ranger, rpart, testthat, vdiffr, xgboost
+→ 图能画（mlr3viz 本体）与"某些图能画"（Suggests 后端）是两件事；后者干净机器上必须先装。
+
+## 1. autoplot S3 方法清单（`getNamespaceInfo("mlr3viz", "S3methods")`，24 个）
+
+BenchmarkResult / EnsembleFSResult / Filter / LearnerClassif / LearnerClassifCVGlmnet /
+LearnerClassifGlmnet / LearnerClassifRpart / LearnerClustAgnes / LearnerClustDiana / LearnerClustHclust /
+LearnerClustHierarchical / LearnerRegr / LearnerRegrCVGlmnet / LearnerRegrGlmnet / LearnerRegrRpart /
+OptimInstanceBatchSingleCrit / PredictionClassif / PredictionClust / PredictionRegr / ResampleResult /
+TaskClassif / TaskClust / TaskRegr / TuningInstanceBatchSingleCrit
+
+（`methods("autoplot")` 查不到这些方法——它们注册在 mlr3viz 命名空间里；用 `getS3method("autoplot", "PredictionRegr")` 取。）
+
+## 2. 场景矩阵实跑结果
+
+[PASS] task: classif target                             3.12s
+[PASS] task: classif pairs (GGally)                     5.36s
+[PASS] task: classif duo                                1.92s
+[PASS] task: regr target                                0.40s
+[PASS] task: regr pairs (全特征 ggpairs)               35.34s
+[PASS] learner: classif prediction (2 特征)             1.24s
+[PASS] learner: regr prediction (2 特征)                0.75s
+[PASS] pred-classif: stacked                            0.74s
+[PASS] pred-classif: roc                                0.66s
+[PASS] pred-classif: prc                                0.64s
+[PASS] pred-classif: threshold (默认 measure)           0.66s
+[PASS] pred-classif: threshold (measure=classif.fbeta)  0.76s
+[PASS] pred-regr: xy (默认) / xy 显式 / residual / histogram   0.51–0.73s
+[PASS] pred-regr: confidence (regr.ranger predict_type=se)    0.81s
+[PASS] rr-classif: boxplot / boxplot(measure) / histogram     0.51–0.54s
+[PASS] rr-classif: roc (折间合并)                       0.69s
+[PASS] rr-classif: roc (rr$prediction())                0.73s
+[PASS] rr-classif: prc                                  0.67s
+[PASS] rr-classif: prediction (store_models + 2 特征)   2.43s
+[PASS] rr-regr: boxplot                                 0.45s
+[PASS] rr-regr: prediction (1 特征) / +se 置信带 / 2 特征曲面   0.49–0.94s
+[PASS] rr-regr: prediction predict_sets=(train,test)    0.49s
+[PASS] bmr: boxplot (单任务) / roc / prc / ci(mlr3inferr)     0.79–1.07s
+[PASS] instance: performance / incumbent / parallel / points / pairs   0.36–14.66s
+[PASS] instance: marginal (cols_x=cp) / parameter       0.53s / 0.36s
+[PASS] filter: 默认 type / type="boxplot"               0.14–0.21s
+
+## 3. 前置条件与报错原文（全部实测复现，已写进 references/evaluation.md §6.5）
+
+[FAIL-预期] learner prediction，任务 3 个特征
+  → Plot learner prediction only works for tasks with two features for classification!
+[FAIL-预期] roc，learner 未设 predict_type="prob"
+  → Need predicted probabilities to plot a ROC curve
+[FAIL-预期] confidence，learner 未设 predict_type="se"
+  → Plot type 'confidence' only possible when `predict_type = 'se'`
+[FAIL-预期] rr type="prediction" 未 store_models
+  → No trained models available. Set 'store_models = TRUE' in 'resample()'.
+[FAIL-预期] bmr type="roc" 含 2 个任务
+  → Unable to convert benchmark results with multiple tasks.
+[FAIL-预期] rr type="prediction"，分类任务 3 个特征
+  → Plot learner prediction only works for tasks with two features for classification!
+[FAIL-预期] theme 传裸名 theme_bw()
+  → could not find function "theme_bw"
+[FAIL-预期] filter type="barplot"（手册 description 里写的就是 barplot，为笔误）
+  → Assertion on 'type' failed: Must be element of set {'boxplot'}, but is 'barplot'.
+
+## 4. 两条本轮新暴露的限制（文档已据此改写）
+
+### 4.1 调优图有两类返回对象，落盘方式不同
+
+performance / incumbent / parallel / points → ggplot2::ggplot   ggsave OK
+marginal（无论是否给 cols_x）      → DelayedPatchworkPlot  ggsave ERR
+parameter                          → DelayedPatchworkPlot  ggsave ERR
+pairs                              → ggmatrix/GGally::ggmatrix  ggsave OK
+
+  A ggsave(plot = parameter 图)，未 attach patchwork
+    → ERR: no applicable method for 'grid.draw' applied to an object of class "DelayedPatchworkPlot"
+  C ggsave(plot = parameter 图)，已 library(patchwork)
+    → ERR: 同上（patchwork 1.3.2 只为该类注册了 print 方法，methods(class="DelayedPatchworkPlot") = "print"）
+  B print(parameter 图) + png() 设备
+    → OK
+→ 落盘修法：png("f.png", ...); print(autoplot(instance, type = "parameter")); dev.off()
+
+### 4.2 tuning type="surface" 只接受两个连续超参
+
+[PASS] surface：regr.ranger(mtry.ratio, sample.fraction)  两纯连续       2.94s
+[PASS] surface：classif.glmnet(alpha, s)                   两纯连续       1.47s
+[FAIL] surface：classif.rpart(cp, minsplit)                含整数超参
+  → Incompatible types during auto-converting column 'minsplit':
+     failed to convert from class 'numeric' to class 'integer'   [Class: Mlr3ErrorInput]
+[FAIL] surface：classif.rpart(cp, maxdepth)                含整数超参       同上（maxdepth）
+[FAIL] surface：minsplit = to_tune(p_int(1, 20))           p_int 显式声明也拦不住
+（对照：同一实例的 performance/incumbent/parameter/parallel/points/pairs/marginal 七类图全部 PASS，
+  即整数超参只影响 surface 这一类。）
+
+## 5. SKILL.md 骨架回归（本轮改动后，发布版本 v2.5.0）
+
+$ Rscript scripts/verify_examples.R
+[OK] 版本自洽 v2.5.0（SKILL.md / README.md / CHANGELOG.md 三处一致）
+[PASS] 可视化·mlr3viz 场景矩阵与前置条件
+=== 汇总：21/21 PASS ===
+--- 耗时：合计 75s / 会话墙钟 76s | 最慢 5 例：最小骨架·分类=15.1s, ppl(branch) 分支调参=12.4s,
+    可视化·mlr3viz 场景矩阵与前置条件=10.4s, 最小骨架·回归=7.7s, 文档签名·图调参与 lts 预置空间=7.4s
+退出码 = 0
+
+（同日多次实测合计 75s / 105s / 276s，波动来自机器负载，用例与断言未变。）

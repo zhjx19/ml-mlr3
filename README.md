@@ -7,8 +7,8 @@
 [![version](https://img.shields.io/github/v/tag/zhjx19/ml-mlr3?label=version)](CHANGELOG.md)
 [![Agent Skills](https://img.shields.io/badge/Agent%20Skills-ml--mlr3-blueviolet)](SKILL.md)
 [![gates](https://github.com/zhjx19/ml-mlr3/actions/workflows/gates.yml/badge.svg)](https://github.com/zhjx19/ml-mlr3/actions/workflows/gates.yml)
-[![Live Verify](https://img.shields.io/badge/verify_examples.R-20%2F20%20PASS-brightgreen)](#验证与测试)
-[![Hallucination audit](https://img.shields.io/badge/documented_examples-168%20keys%2C%200%20hallucinated-brightgreen)](examples/EXAMPLE.md)
+[![Live Verify](https://img.shields.io/badge/verify_examples.R-21%2F21%20PASS-brightgreen)](#验证与测试)
+[![Hallucination audit](https://img.shields.io/badge/documented_examples-169%20keys%2C%200%20hallucinated-brightgreen)](examples/EXAMPLE.md)
 [![Evals](https://img.shields.io/badge/evals-6%20prompts%20%2B%20assertions-orange)](#验证与测试)
 [![GitHub](https://img.shields.io/badge/GitHub-zhjx19%2Fml--mlr3-black)](https://github.com/zhjx19/ml-mlr3)
 [![skills.sh](https://skills.sh/b/zhjx19/ml-mlr3)](https://skills.sh/zhjx19/ml-mlr3)
@@ -107,19 +107,20 @@ ml-mlr3/
 │   ├── resampling.md          # CV/重复CV/holdout/分组/时序custom滚动折
 │   ├── feature-engineering.md + feature-engineering/  # PipeOp 预处理总览与 4 个细分
 │   ├── tuning.md              # auto_tuner / auto_fselector
-│   ├── evaluation.md          # 指标、ROC/PRC/残差图、benchmark、最终评估
+│   ├── evaluation.md          # 指标、可视化（mlr3viz 场景→图表）、benchmark、最终评估
 │   └── advanced-workflows.md  # 5 大进阶工作流（调优benchmark/图调参/不平衡/联合调优/早停）
 ├── scripts/
-│   ├── verify_examples.R      # 骨架回归：20 个案例一键实跑（含字典探针，防文档写回已移除的 API）
+│   ├── verify_examples.R      # 骨架回归：21 个案例一键实跑（含字典探针，防文档写回已移除的 API）
 │   ├── list_example_deps.R    # 从示例本身算出要装哪些 R 包（CI 依赖清单不再手抄）
 │   ├── check_answer_api.R     # 幻觉键体检：抓回答里字典中不存在的 lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()
 │   └── run_evals.mjs          # evals 断言评分器（零依赖 Node）
 ├── examples/
 │   ├── EXAMPLE.md             # 证据件：无/有 skill 双向回放 + 两把尺子的原始输出 + 重跑命令
 │   └── replay/                # 四份真实对照答案（baseline-* / skilled-*），可被上面两个评分器直接吃
+├── assets/                    # 证据件：门禁实跑转录、mlr3viz 可视化目录矩阵、可 diff 的 SVG 证据卡
 ├── evals/outputs/             # 评测回答存放处（eval-<id>.md）
 └── .github/workflows/
-    └── gates.yml              # CI：全量 20 例（ubuntu + windows）+ 全库幻觉键体检 + 断言引擎自检
+    └── gates.yml              # CI：全量 21 例（ubuntu + windows）+ 全库幻觉键体检 + 断言引擎自检
 ```
 
 ## 验证与测试
@@ -153,8 +154,9 @@ Rscript scripts/verify_examples.R
 [PASS] 重抽样实测坑·bootstrap/封装兜底/分层/线程
 [PASS] 文档口径·spatialsign 归属 / 依赖包 / validate='test' 静默
 [PASS] 文档口径·robustify 图访问器 / 参数 id / 覆盖默认值
+[PASS] 可视化·mlr3viz 场景矩阵与前置条件
 
-=== 汇总：20/20 PASS ===
+=== 汇总：21/21 PASS ===
 ```
 
 **装依赖**：示例要的 R 包由脚本从示例本身算出，不手抄：
@@ -166,7 +168,7 @@ Rscript scripts/list_example_deps.R --install             # 装上缺的包
 Rscript scripts/list_example_deps.R --mirror --repos <你的 CRAN 镜像>   # 预飞：你的镜像里有没有它
 ```
 
-`.github/workflows/gates.yml` 每次 push / PR 跑同样三道门禁：**全量** 20 例（ubuntu + windows，不砍案例 / 折数 / 预算）+ 全库幻觉键体检 + 断言引擎自检；失败时红灯自带病因（`FAIL:` / `[幻觉]` 行与安装回执写成 annotation）。
+`.github/workflows/gates.yml` 每次 push / PR 跑同样三道门禁：**全量** 21 例（ubuntu + windows，不砍案例 / 折数 / 预算）+ 全库幻觉键体检 + 断言引擎自检；失败时红灯自带病因（`FAIL:` / `[幻觉]` 行与安装回执写成 annotation）。
 
 **评测**（evals.json 的 6 个 prompt 覆盖标准流程/红线拦截/时间序列/不平衡/回归/嵌套重抽样陷阱）：把回答存进 `evals/outputs/eval-<id>.md`，然后：
 
@@ -186,16 +188,16 @@ node scripts/run_evals.mjs              # 逐断言评分，任一 FAIL 退出�
 Rscript scripts/check_answer_api.R examples/replay/skilled-eval-1.md examples/replay/baseline-eval-1.md
 ```
 
-它把回答里所有 `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` 的首参逐个对着 mlr3verse 字典探测，键不存在就点名并附字典自己的 "Did you mean" 提示，退出码 1。本机实测：`baseline-*` 两份 4+4 个幻觉键全部被抓；把 `SKILL.md` + 全部 `references/` + A 组 6 份 + `examples/replay/skilled-*` 一起喂进去，**168 个唯一键 0 幻觉**（这个数随正文增删而变，以现跑为准）。
+它把回答里所有 `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` 的首参逐个对着 mlr3verse 字典探测，键不存在就点名并附字典自己的 "Did you mean" 提示，退出码 1。本机实测：`baseline-*` 两份 4+4 个幻觉键全部被抓；把 `SKILL.md` + 全部 `references/` + A 组 6 份 + `examples/replay/skilled-*` 一起喂进去，**169 个唯一键 0 幻觉**（这个数随正文增删而变，以现跑为准）。
 
 ## 版本与更新历史
 
-**当前发布版本：v2.4.0**。版本号与逐版改动都在仓库里：
+**当前发布版本：v2.5.0**。版本号与逐版改动都在仓库里：
 
 | 在哪看 | 内容 |
 |---|---|
 | [`CHANGELOG.md`](CHANGELOG.md) | 逐版记录，**每版讲清"为什么改"**，不只是改动清单；未发布的改动堆在 `[Unreleased]` 段 |
-| [tags](https://github.com/zhjx19/ml-mlr3/tags) | 打 tag 即发版：`v2.4.0` ← `v2.3.0` ← `v2.2.0` ← `v2.1.0`；首屏 `version` 徽章读最新 tag（现为 `v2.4.0`） |
+| [tags](https://github.com/zhjx19/ml-mlr3/tags) | 打 tag 即发版：`v2.5.0` ← `v2.4.0` ← `v2.3.0` ← `v2.2.0` ← `v2.1.0`；首屏 `version` 徽章读最新 tag（现为 `v2.5.0`） |
 | `SKILL.md` frontmatter 的 `version:` | 给 runtime / 市场读的那一份 |
 
 ## 致谢

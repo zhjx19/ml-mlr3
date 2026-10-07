@@ -1,7 +1,7 @@
 name: gates
 
 # 三道门禁：
-#   1) R 骨架回归 —— 全量 20 例实跑（scripts/verify_examples.R）
+#   1) R 骨架回归 —— 全量 21 例实跑（scripts/verify_examples.R）
 #   2) 幻觉键体检 —— 文档示例与 skilled 回放里出现的每个字典键都必须真实存在（scripts/check_answer_api.R）
 #   3) 断言引擎自检 —— 无/有 skill 两侧的评测断言不能互相漏检（scripts/run_evals.mjs --selftest）
 # 依赖清单不再手抄：由 scripts/list_example_deps.R 从 verify_examples.R 本身算出（字典键 $packages
@@ -73,7 +73,7 @@ jobs:
           set +o pipefail
           if Rscript scripts/verify_examples.R > _verify.log 2>&1; then rc=0; else rc=$?; fi
           cat _verify.log
-          # 健康卡：汇总行 + 耗时行写成 notice，绿灯时也能从公开通道看到"这 20 例真的跑了多少秒"，
+          # 健康卡：汇总行 + 耗时行写成 notice，绿灯时也能从公开通道看到"这 21 例真的跑了多少秒"，
           # 不用下载日志（annotation 是 /logs 403 之后唯一对公众开放的通道）。
           grep -E "^=== 汇总|^--- 耗时" _verify.log | head -2 | sed 's/^/::notice::/'
           grep -F "FAIL: " _verify.log | head -4 | sed 's/^/::error::/'

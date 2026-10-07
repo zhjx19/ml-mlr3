@@ -12,7 +12,7 @@ description: >-
   不要用于：深度学习、非表格数据（图像/文本/NLP）；tidymodels 工作流（改用 tidymodels 生态技能）；
   轻量探索性分组建模（dplyr nest + map 即可）；数据清洗本身。
 license: Apache-2.0
-version: 2.4.0
+version: 2.5.0
 ---
 
 # mlr3verse 表格数据机器学习建模
@@ -26,9 +26,9 @@ version: 2.4.0
 
 ## API 现场校验（不背版本号）
 
-mlr3 生态迭代快，本技能不维护版本对照表：**版本号全文只出现在下面这一行实测记录里**，它回答"这些示例最近何时、在什么环境跑通"，不回答"哪个 API 从哪个版本起存在"。规则只有一条：**照抄任何对象名/参数名之前，先当场探测它是否存在**。示例的可执行契约由 `scripts/verify_examples.R`（20 例实跑）和 `scripts/run_evals.mjs`（静态断言）把守——改完示例代码这两个都必须重跑，跑通后刷新这行记录。
+mlr3 生态迭代快，本技能不维护版本对照表：**版本号全文只出现在下面这一行实测记录里**，它回答"这些示例最近何时、在什么环境跑通"，不回答"哪个 API 从哪个版本起存在"。规则只有一条：**照抄任何对象名/参数名之前，先当场探测它是否存在**。示例的可执行契约由 `scripts/verify_examples.R`（21 例实跑）和 `scripts/run_evals.mjs`（静态断言）把守——改完示例代码这两个都必须重跑，跑通后刷新这行记录。
 
-> 实测记录：2026-09-26 · R 4.6.1 / mlr3 1.8.0 / mlr3pipelines 0.12.0 / mlr3tuning 1.7.0 / mlr3fselect 1.7.0 / paradox 1.0.1 · `verify_examples.R` 20/20 PASS
+> 实测记录：2026-10-07 · R 4.6.1 / mlr3 1.8.0 / mlr3pipelines 0.12.0 / mlr3tuning 1.7.0 / mlr3fselect 1.7.0 / paradox 1.0.1 / mlr3viz 0.11.2 · `verify_examples.R` 21/21 PASS
 
 ```r
 mlr_learners$keys(); mlr_pipeops$keys(); mlr_measures$keys()
@@ -220,7 +220,7 @@ rr$aggregate(measures)
 
 ## ppl("robustify") 默认预处理管线
 
-**依赖包提示（防"运行即报错"）**：示例用到的模型/算子对应 R 包——`classif.glmnet`→`glmnet`、`classif.ranger`→`ranger`、`classif.kknn`→`kknn`、`classif.xgboost`→`xgboost`（注意是 `xgboost` 本身，学习器由 mlr3verse 附带的 `mlr3learners` 提供，`mlr3xgboost` 是另一套带预置调参空间的实现，装了会覆盖同名键）、`classif.svm`→`e1071`（mlr3verse 默认附带，但其 `cost`/`gamma` 是条件参数，见「调优：auto_tuner」陷阱说明）、`po("smote")`→`smotefamily`、`yeojohnson`/`boxcox` 分支→`bestNormalize`、ROC/PRC 可视化→`precrec`、`tnr("mbo")`→`mlr3mbo`（mlr3verse 已附带）、并行探测用的 `future::availableCores()`→`future` 与 `ps::ps_system_memory()`→`ps`（**这两个都不在 mlr3verse 的硬依赖里**，`packageDescription("mlr3verse")$Imports` 现场可查；装了 mlr3verse 再写 `future::` 就是运行即报错 `there is no package called 'future'`）。运行前先确认已安装（缺则 `install.packages(...)`）；未安装的模型/分支改用可用替代（如未装 bestNormalize 就去掉 yeojohnson 分支）。想核对某个键到底要哪个包：`mlr_learners$get("classif.xgboost")$packages`。还有一类不是"少装一个后端包"而是"整个提供方不在 CRAN"：`classif.lightgbm` / `regr.lightgbm` / `classif.catboost` 等由 `mlr3extralearners` 注册，该包不在 CRAN，官方通道是 mlr-org 的 r-universe（`install.packages("mlr3extralearners", repos = c(getOption("repos"), mlorg = "https://mlr-org.r-universe.dev"))`）；没装它时这些键根本不在 `mlr_learners$keys()` 里，写进文档的候选学习器清单前要先探测。最后一种失败形态最容易误判：报 `unable to load shared object '…/xxx.so'` 时，那个包**磁盘上已有**，`install.packages` 因此直接跳过（重装无效），而缺的是**它依赖的系统库**、不是 R 包——先 `loadNamespace("包名")` 把被 `requireNamespace(quietly = TRUE)` 咽掉的原文捞出来，看清是哪个包加载不了、缺哪个库，补齐再试。
+**依赖包提示（防"运行即报错"）**：示例用到的模型/算子对应 R 包——`classif.glmnet`→`glmnet`、`classif.ranger`→`ranger`、`classif.kknn`→`kknn`、`classif.xgboost`→`xgboost`（注意是 `xgboost` 本身，学习器由 mlr3verse 附带的 `mlr3learners` 提供，`mlr3xgboost` 是另一套带预置调参空间的实现，装了会覆盖同名键）、`classif.svm`→`e1071`（mlr3verse 默认附带，但其 `cost`/`gamma` 是条件参数，见「调优：auto_tuner」陷阱说明）、`po("smote")`→`smotefamily`、`yeojohnson`/`boxcox` 分支→`bestNormalize`、可视化 `autoplot()`→`mlr3viz`（**mlr3verse 的硬依赖，随装随有、不必单装**；要单装的是它在 **Suggests** 里的后端：ROC/PRC→`precrec`、`pairs`/`duo`→`GGally`、学习器结构图→`ggfortify`/`ggparty`、benchmark `type="ci"`→`mlr3inferr`，`packageDescription("mlr3viz")$Suggests` 现场可查；另外 mlr3verse 不 attach ggplot2，自加图层要 `library(ggplot2)` 或 `ggplot2::` 前缀）、`tnr("mbo")`→`mlr3mbo`（mlr3verse 已附带）、并行探测用的 `future::availableCores()`→`future` 与 `ps::ps_system_memory()`→`ps`（**这两个都不在 mlr3verse 的硬依赖里**，`packageDescription("mlr3verse")$Imports` 现场可查；装了 mlr3verse 再写 `future::` 就是运行即报错 `there is no package called 'future'`）。运行前先确认已安装（缺则 `install.packages(...)`）；未安装的模型/分支改用可用替代（如未装 bestNormalize 就去掉 yeojohnson 分支）。想核对某个键到底要哪个包：`mlr_learners$get("classif.xgboost")$packages`。还有一类不是"少装一个后端包"而是"整个提供方不在 CRAN"：`classif.lightgbm` / `regr.lightgbm` / `classif.catboost` 等由 `mlr3extralearners` 注册，该包不在 CRAN，官方通道是 mlr-org 的 r-universe（`install.packages("mlr3extralearners", repos = c(getOption("repos"), mlorg = "https://mlr-org.r-universe.dev"))`）；没装它时这些键根本不在 `mlr_learners$keys()` 里，写进文档的候选学习器清单前要先探测。最后一种失败形态最容易误判：报 `unable to load shared object '…/xxx.so'` 时，那个包**磁盘上已有**，`install.packages` 因此直接跳过（重装无效），而缺的是**它依赖的系统库**、不是 R 包——先 `loadNamespace("包名")` 把被 `requireNamespace(quietly = TRUE)` 咽掉的原文捞出来，看清是哪个包加载不了、缺哪个库，补齐再试。
 
 一键稳健预处理的 `ppl("robustify")` 展开是**含 14 个 PipeOp 的非线性 DAG**（不是线性串联），一次做掉：删常数 → 字符/有序因子转分类、日期转数值 → 数值列直方图采样插补 + 逻辑列经验分布插补 + 缺失指示器（这三路在 `featureunion_robustify` 处并行分叉再合并）→ 分类新水平视作缺失 → 修复因子水平 → 折叠稀有水平 → 独热编码 → 再删新增常数。节点名单与连边**现场探测**，别背：
 
@@ -256,19 +256,38 @@ glrn = ppl("robustify") %>>%   # task=task, learner=lrn 可选
 
 ### 评估必附可视化
 
-数值指标之外必须附对应图形（用训练集内 CV 预测绘制；测试集图须获授权后画）：
+数值指标之外**必附**对应图形（用训练集内 CV 预测绘制；测试集图须获授权后画）。图统一由 **mlr3viz** 画：`autoplot()` 按对象类型分派、`type` 选图；它是 `mlr3verse` 的硬依赖（`packageDescription("mlr3verse")$Imports` 可查），`library(mlr3verse)` 后即可用，不必 `library(mlr3viz)`。
 
-| 任务 | 必附 |
-|---|---|
-| 二分类 | ROC（不平衡换 PR）+ 阈值相关 `autoplot(pred, type = "threshold")` |
-| 回归 | 观测 vs 预测散点 + 残差图 |
+选图两步：**先定"要回答什么问题"→ 定对象；再定 `type`**。同一份 `rr` 能画五六种图。
+
+| 场景（要回答什么） | 对象 | 调用 |
+|---|---|---|
+| 建模前：类别不平衡 / 目标分布 | Task | `autoplot(task, type = "target")` |
+| 建模前：特征两两关系、异常点 | Task | `autoplot(task, type = "pairs")`（需 `GGally`） |
+| 开发期：**折间稳定性**（不只看均值） | ResampleResult | `autoplot(rr, type = "boxplot")` |
+| **二分类：判别力**（必附） | ResampleResult / PredictionClassif / BenchmarkResult | `autoplot(rr, type = "roc")`；不平衡改 `"prc"` |
+| **二分类：定决策阈值**（代价不对称时必附） | PredictionClassif | `autoplot(pred, type = "threshold", measure = msr("classif.fbeta"))` |
+| **回归：拟合诊断**（必附） | PredictionRegr | `autoplot(pred, type = "xy")` + `autoplot(pred, type = "residual")` |
+| 回归：残差分布形态 | PredictionRegr | `autoplot(pred, type = "histogram", binwidth = 1)` |
+| 模型比较 | BenchmarkResult | `autoplot(bmr, type = "boxplot", measure = msr("classif.auc"))` |
+| 调优诊断：收敛 / 参数响应 | TuningInstance | `autoplot(instance, type = "performance")`、`"incumbent"`、`"marginal"`（`cols_x=`） |
+| 特征筛选打分 | Filter | `autoplot(flt, n = 10)` |
+| 决策边界 / CV 预测曲面（分类限 **2** 特征） | Learner / ResampleResult | `autoplot(learner, type = "prediction", task)`；`autoplot(rr, type = "prediction")` |
 
 ```r
-# ROC/PRC 图依赖 R 包 precrec（mlr3verse 不自带，缺则 install.packages("precrec")）
-autoplot(rr$prediction(), type = "roc")   # 二分类；不平衡改 type = "prc"
+# 二分类：rr 来自 resample(..., store_models = TRUE)，learner 需 predict_type = "prob"
+autoplot(rr, type = "roc")     # 折间合并口径（micro averaged）
+autoplot(rr, type = "prc")     # 不平衡数据优先
+
+# 回归：mlr3viz 自带 xy / residual，不要手写 ggplot
+# （library(mlr3verse) 不 attach ggplot2，裸写 ggplot() 会报 could not find function "ggplot"）
+autoplot(pred, type = "xy")
+autoplot(pred, type = "residual")
 ```
 
-回归的 obs-vs-pred / 残差 ggplot 写法、benchmark 箱线图见 `references/evaluation.md`。
+报告里写清 ROC 用的是哪个口径：`autoplot(rr, type = "roc")`（折间合并）与 `autoplot(rr$prediction(), type = "roc")`（合并预测对象）**不是一回事**，也都不等于 `rr$aggregate(msr("classif.auc"))` 的逐折均值。
+
+前置条件：`roc`/`prc` 需 `predict_type = "prob"` + `precrec`；`confidence` 需 `predict_type = "se"`；`rr` 的 `prediction` 图需 `store_models = TRUE` 且分类任务恰好 2 特征；`bmr` 的 `roc`/`prc` 需单任务单重抽样。完整场景表、各图读法、报错原文对照见 `references/evaluation.md` §4–§6。
 
 ## PipeOp / GraphLearner 特征工程
 
@@ -447,4 +466,4 @@ skill.md 保持精简；遇到以下具体需求时，读取对应知识文件�
 - [ ] 对复杂 GraphLearner 是否利用了 `ppl("branch")` 分支路由调参？
 - [ ] 不平衡处理（SMOTE 等）是否封装在图中并用 `auto_tuner` 确保每折独立采样？
 - [ ] 代码是否遵守全局 R 编码铁律（`=`、`|>`/`%>>%`、`\(x)`、`.by`）？
-- [ ] 示例代码改动后运行 `scripts/verify_examples.R`，20 个案例全 PASS？
+- [ ] 示例代码改动后运行 `scripts/verify_examples.R`，21 个案例全 PASS？

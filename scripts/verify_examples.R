@@ -663,6 +663,102 @@ results = c(
     glrn_rb$train(t_rb)
     stopifnot(nrow(glrn_rb$predict_newdata(head(d_rb, 5))$data) == 5L)   # 注意：predict 不接受 type= 参数，改预测类型走 lrn(predict_type=)
     TRUE
+  }),
+
+  ## 可视化（mlr3viz）：推荐路径必须真能出图 + 前置条件报错契约不得漂移
+  ## 为什么把"报错原文"也钉进来：这些报错是文档 §6.5 对照表的正文，措辞漂了就说明文档失联，
+  ## 而读者照着文档补 predict_type / store_models 的行为依赖这些字面量。
+  run_case("可视化·mlr3viz 场景矩阵与前置条件", {
+    expect_err = \(expr, pattern) {
+      msg = tryCatch({ force(expr); NA_character_ }, error = \(e) conditionMessage(e))
+      stopifnot(!is.na(msg), grepl(pattern, msg, fixed = TRUE))
+      TRUE
+    }
+    render_ok = \(p) {                       # 强制渲染：只在绘制期暴露的错误也算失败
+      f = tempfile(fileext = ".png")
+      grDevices::png(f, width = 700, height = 450, res = 96)
+      print(p)                               # ggplot / ggmatrix / DelayedPatchworkPlot 统一靠 print 派发
+      grDevices::dev.off()
+      ok = file.exists(f) && file.info(f)$size > 1000
+      unlink(f); stopifnot(ok)
+      TRUE
+    }
+
+    # 1) 归属：mlr3viz 是 mlr3verse 硬依赖（随装随有，不必单装）；
+    #    但 library(mlr3verse) 既不 attach mlr3viz、也不 attach ggplot2——autoplot 能用只因被再导出
+    imp = trimws(strsplit(gsub("[\r\n]+", " ", packageDescription("mlr3verse")$Imports), ",")[[1]])
+    stopifnot(any(grepl("^mlr3viz", imp)))
+    stopifnot(!("package:mlr3viz" %in% search()), exists("autoplot"))
+    stopifnot(!("package:ggplot2" %in% search()), !exists("ggplot"))
+    stopifnot(is.function(getS3method("autoplot", "PredictionRegr")))   # S3 方法存在性探针
+
+    # 2) 推荐路径：分类
+    t_v = tsk("sonar")
+    l_v = lrn("classif.rpart", predict_type = "prob")
+    pred_v = l_v$train(t_v)$predict(t_v)
+    rr_v = resample(t_v, l_v, rsmp("cv", folds = 3L), store_models = TRUE)
+    stopifnot(render_ok(autoplot(t_v, type = "target")))
+    stopifnot(render_ok(autoplot(pred_v, type = "stacked")))
+    stopifnot(render_ok(autoplot(pred_v, type = "threshold", measure = msr("classif.fbeta"))))
+    stopifnot(render_ok(autoplot(rr_v, type = "boxplot", measure = msr("classif.auc"))))
+    stopifnot(render_ok(autoplot(rr_v, type = "histogram", bins = 10)))
+    if (requireNamespace("precrec", quietly = TRUE)) {           # mlr3viz Suggests，非硬依赖
+      stopifnot(render_ok(autoplot(pred_v, type = "roc")))
+      stopifnot(render_ok(autoplot(pred_v, type = "prc")))
+      stopifnot(render_ok(autoplot(rr_v$prediction(), type = "roc")))
+    }
+
+    # 3) 推荐路径：回归（mlr3viz 原生四图——此前文档的裸 ggplot 写法在本环境跑不通）
+    t_rg = tsk("mtcars")
+    pred_rg = lrn("regr.rpart")$train(t_rg)$predict(t_rg)
+    for (tp in c("xy", "residual", "histogram")) stopifnot(render_ok(autoplot(pred_rg, type = tp)))
+    stopifnot(render_ok(autoplot(pred_rg, theme = ggplot2::theme_bw())))
+    if (requireNamespace("ranger", quietly = TRUE)) {
+      pred_se = lrn("regr.ranger", predict_type = "se")$train(t_rg)$predict(t_rg)
+      stopifnot(render_ok(autoplot(pred_se, type = "confidence")))
+    }
+
+    # 4) 调优图（整数超参不影响这五类；surface 另见下方条件断言）
+    inst_v = ti(task = tsk("sonar"),
+      learner = lrn("classif.rpart", cp = to_tune(0.001, 0.1), minsplit = to_tune(1, 20)),
+      resampling = rsmp("holdout"), measure = msr("classif.ce"),
+      terminator = trm("evals", n_evals = 12L))
+    tnr("random_search")$optimize(inst_v)
+    for (tp in c("performance", "incumbent", "parameter", "parallel")) {
+      stopifnot(render_ok(autoplot(inst_v, type = tp)))
+    }
+    stopifnot(render_ok(autoplot(inst_v, type = "marginal", cols_x = "cp")))
+    stopifnot(render_ok(autoplot(inst_v, type = "points", cols_x = c("cp", "minsplit"))))
+    stopifnot(render_ok(autoplot(inst_v, type = "parameter")))
+    # 文档 §6.3/§6.6 说 marginal/parameter 返回 DelayedPatchworkPlot（ggsave 不适用，须 print + 设备）。
+    # 断言写成"非 ggplot 时必须是 patchwork 延迟对象"：上游若改成普通 ggplot，本条不误报，
+    # 但换成第三种类型时会红——那时文档的落盘建议要一起改。
+    p_par = autoplot(inst_v, type = "parameter")
+    if (!inherits(p_par, "ggplot")) stopifnot(inherits(p_par, "DelayedPatchworkPlot"))
+    # surface 需两个超参都是连续型：含整数超参时当前版本报类型转换错误（文档已记为限制）。
+    # 双向容错：上游修好后 → 只要不报错即 PASS；报错则必须仍是同一条原文，措辞变了要人来看。
+    st = tryCatch({ autoplot(inst_v, type = "surface", cols_x = c("cp", "minsplit")); "ok" },
+                  error = \(e) conditionMessage(e))
+    if (!identical(st, "ok")) stopifnot(grepl("Incompatible types during auto-converting", st, fixed = TRUE))
+
+    # 5) 筛选图：只有 "boxplot" 一个合法 type（手册 description 写的 "barplot" 是笔误）
+    flt_v = flt("correlation"); flt_v$calculate(tsk("mtcars"))
+    stopifnot(render_ok(autoplot(flt_v, n = 5)))
+    expect_err(autoplot(flt_v, type = "barplot"), "Must be element of set {'boxplot'}")
+
+    # 6) 前置条件报错契约（文档 §6.5 对照表的字面量）
+    expect_err(autoplot(lrn("classif.rpart")$train(t_v)$predict(t_v), type = "roc"),
+               "Need predicted probabilities")
+    expect_err(autoplot(pred_rg, type = "confidence"), "predict_type = 'se'")
+    expect_err(autoplot(resample(t_v, l_v, rsmp("cv", folds = 3L)), type = "prediction"),
+               "store_models = TRUE")
+    t_wide = t_v$clone()$select(c("V1", "V11", "V12"))
+    expect_err(autoplot(lrn("classif.rpart")$train(t_wide), type = "prediction", task = t_wide),
+               "two features")
+    bmr_v = benchmark(benchmark_grid(tsks(c("sonar", "penguins")), l_v, rsmp("cv", folds = 3L)))
+    expect_err(autoplot(bmr_v, type = "roc"), "multiple tasks")
+    expect_err(autoplot(pred_rg, theme = theme_bw()), "could not find function")
+    TRUE
   })
 )
 

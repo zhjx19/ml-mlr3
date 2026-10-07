@@ -2,6 +2,36 @@
 
 本仓库遵循「发版讲清为什么改」的迭代纪律：每个版本记录动机，不只是改动清单。
 
+## [2.5.0] — 2026-10-07 · 可视化小节补齐（mlr3viz 点名 + 场景→图决策表 + 活体实跑）
+
+### Fixed
+- **`references/evaluation.md` §5 回归可视化代码块在 skill 自己的最小环境下跑不通**。为什么改：那段用裸名 `ggplot()` / `aes()` / `geom_point()` / `mutate()` 手写散点图与残差图，而 `library(mlr3verse)` **既不 attach ggplot2 也不 attach dplyr**——本机逐字复刻实跑，两块都报 `could not find function "ggplot"`（`autoplot` 能用只是因为 mlr3verse 把它再导出了，`ggplot2` 在 `search()` 里根本没有）。SKILL.md 第 271 行当时正把读者指向这段写法。更根本的是**这段手写代码本来就是多余的**：mlr3viz 的 `autoplot(PredictionRegr)` 自带 `xy`（默认）/ `residual` / `histogram` / `confidence` 四类图。现改为原生调用，并补一句"确实要自己加图层时必须 `library(ggplot2)` 或 `ggplot2::` 前缀"。
+
+### Added
+- **「评估必附可视化」升级为场景→图决策表（SKILL.md + `references/evaluation.md` §4.1）**。为什么加：原表只有"任务 → 必附图"两行（分类 ROC、回归散点），回答不了"我手上这个对象该画哪一种图"。新表按**要回答的问题**组织（折间稳定性 / 判别力 / 定阈值 / 拟合诊断 / 模型比较 / 调优收敛 / 特征筛选 / 决策边界），每行给出对象类型、`autoplot()` 调用与前提条件；并写清选图两步法：先定问题 → 定对象，再定 `type`——同一份 `rr` 能画五六种图，选错对象比选错 `type` 更常见。
+- **点名 mlr3viz 及其依赖分层**。为什么加：全仓库此前 grep `mlr3viz` **只在 CHANGELOG 里出现过一次**（讲 precrec 那条），正文从未点名，读者不知道 `autoplot()` 背后是谁、要不要单独装。现写明：mlr3viz 是 **mlr3verse 的硬依赖**（`packageDescription("mlr3verse")$Imports` 现场可查，`mlr3viz (>= 0.10.0)`，**不必单装**）；要单装的是它 **Suggests** 里的后端——ROC/PRC→`precrec`、`pairs`/`duo`→`GGally`、学习器结构图→`ggfortify`/`ggparty`、benchmark `type="ci"`→`mlr3inferr`、`marginal`/`parameter` 的 patchwork 类→`patchwork`。功能本体与"某些图"的依赖边界，此前是混在一起的。
+- **§6.5 前置条件与报错原文对照表**（8 条，全部实测复现）。为什么加：这些报错（`Need predicted probabilities…`、`store_models = TRUE`、`two features for classification`、`multiple tasks`…）是读者照着文档补配置时的唯一线索，措辞就是契约。以表列出"报错原文 → 缺什么"，避免把缺 `predict_type` 误诊成图画错了。
+- **§4.3「用 `rr` 还是 `rr$prediction()`」**。为什么加：`autoplot(rr, type = "roc")`（折间合并，mlr3viz 手册记作 micro averaged）、`autoplot(rr$prediction(), type = "roc")`（合并预测对象）与 `rr$aggregate(msr("classif.auc"))`（逐折均值）是**三个不同口径**，此前文档只写了其中一条，读者无法在报告里说清自己用的是哪个。
+- **`assets/viz-matrix-2026-10-07.txt`**：本轮 mlr3viz 目录矩阵的实跑转录（环境 / 24 个 S3 方法清单 / 场景矩阵 PASS 表 / 报错原文 / 两条新限制 / 骨架回归 21-21）。
+
+### Changed
+- **`scripts/verify_examples.R` 新增用例 21「可视化·mlr3viz 场景矩阵与前置条件」**（shipped 20 → 21 例）。为什么加：可视化代码块此前**不在任何门禁覆盖范围内**——`verify_examples.R` 里 grep `autoplot|ggplot|precrec` 零命中，所以上面那条"跑不通的 §5"能一路绿着发出去。新用例做三件事：① 复刻最小环境（断言 `library(mlr3verse)` 后 **mlr3viz 与 ggplot2 都没被 attach**、但 `autoplot` 可用）；② 把决策表里的推荐调用逐条**真渲染**（`print()` 进 png 设备 + 校验文件大小 > 1KB，抓只在绘制期暴露的错误；可选后端 `precrec`/`ranger` 用 `requireNamespace()` 内联守卫，缺失只跳过该条、不吞掉其余断言）；③ 钉住 8 条前置条件报错原文，措辞漂了就红——文档 §6.5 对照表的字面量因此有了守卫。
+- **调优图新增"两类返回对象"说明（§6.3 / §6.6）**。为什么改：`autoplot(instance, type = "marginal")` 与 `"parameter"` 返回的不是 ggplot，而是 patchwork 的 **`DelayedPatchworkPlot`** 延迟对象——实测 `class()` 如此，`ggsave()` 报 `no applicable method for 'grid.draw' applied to an object of class "DelayedPatchworkPlot"`，**`library(patchwork)` 也救不了**（patchwork 1.3.2 只为该类注册了 `print`，`methods(class = "DelayedPatchworkPlot")` 只返回 `"print"`）；`pairs` 则是 GGally 的 `ggmatrix`（`ggsave` 可用）。落盘修法写成 `png(...); print(p); dev.off()`。顺带记下 `surface` 的适用范围：**两个超参都必须是连续型**，含整数超参（`minsplit`/`maxdepth`）时当前版本报 `Incompatible types during auto-converting column '…'`（`p_int()` 显式声明也拦不住），同一实例其余七类调优图不受影响。
+- **Filter 图的 `type` 取值纠正**：只接受 `"boxplot"`（默认）。标题写作"纠错"而非"新增"：mlr3viz 手册自身矛盾——description 写 `'"barplot"'`（默认），usage 写 `type = "boxplot"`，实测传 `"barplot"` 直接 `Assertion on 'type' failed: Must be element of set {'boxplot'}, but is 'barplot'.`。文档按实测口径写，并注明手册 description 是笔误。
+- **README / README.en.md 文件树里 `evaluation.md` 的说明**同步为"指标、可视化（mlr3viz 场景表）、benchmark、最终评估"。
+
+### 验证
+- 本机（Windows / R 4.6.1 / mlr3viz 0.11.2）：`Rscript scripts/verify_examples.R` → 版本自洽 **v2.5.0** + **21/21 PASS**，退出码 0（同日多次实测合计 75s / 105s / 276s——机器负载波动，用例与断言未变）。
+- `Rscript scripts/check_answer_api.R SKILL.md "references/*.md" "references/feature-engineering/*.md" "evals/outputs/eval-*.md" "examples/replay/skilled-*.md"` → **169 个唯一字典键，幻觉 0**（本轮正文新增键使计数 168 → 169）。
+- `Rscript scripts/list_example_deps.R` → 待装 **21** 个（hard 17 / opt 4），本机缺失 = 无。hard 从 16 升到 17 是本轮引入的：新用例里有 `ggplot2::theme_bw()`，按既有规则（正文 `pkg::` 直接引用即入清单）`ggplot2` 进清单——它本就是 mlr3viz 的硬依赖，实际不会缺，但清单口径保持"从示例算出"而非手抄。
+- `node scripts/run_evals.mjs --selftest` → 引擎自检 PASS。
+- 可视化专项目录矩阵（含未进 CI 的全类型扫描、`surface` 限制的 4 组对照、每条报错原文）：见 `assets/viz-matrix-2026-10-07.txt`。
+- 未做的事：未改 `gates.yml` 的步骤结构（新用例随既有步骤自动跑）；未把 mlr3viz 的**全部** 24 个 S3 方法写进正文（聚类 `TaskClust`/`PredictionClust`/`LearnerClust*` 与 `EnsembleFSResult`/`OptimInstanceBatchSingleCrit` 超出本 skill 的分类/回归主线，仅在资产转录里留清单）。
+
+### 发布与本地部署同步
+- **版本号 2.4.0 → 2.5.0**（minor：新增回归用例 21、新增 `references/evaluation.md` §4–§6 与 §6.5 对照表、新增 `assets/viz-matrix-2026-10-07.txt`；无破坏性改动）。三处同步：`SKILL.md` frontmatter / README「当前发布版本」段 / 本 CHANGELOG 条目——由 `verify_examples.R` 开头的元数据自检把关（本轮实跑输出 `[OK] 版本自洽 v2.5.0`）。
+- **本地部署同步（非仓库改动，记此备查）**：`.qoder-cn/skills/ml-mlr3` 原为与源同 commit（`8809ec3`）、工作树干净的独立 clone（`git status` 空、该 commit 已在 `origin/main` 上），本轮**删除并改为指向源的 Junction**，与其他 5 份一致：`.claude` / `.codex` 本就是 Junction，`.workbuddy` / `.zcode` / `.openclaw-autoclaw` 本就是 SymbolicLink——6 份全部指向 `.config/opencode/skills/ml-mlr3`，此后源改一处、6 个 runtime 同步生效，不再有"多份副本各说各话"的风险。仓库外的两处独立副本（`Desktop/AI笔记/.../opencode skills/ml-mlr3` 与 `.openclaw-autoclaw/workspace/.openclaw/tmp/mlr3-ac-backup/`）本轮**未动**（前者是刻意的独立备份，后者是临时备份目录），是否一并转链接待用户定。
+
 ## [2.4.0] — 2026-09-26 · 发布（门禁四次量尺 + README 修正 / 英文版 / 证据卡 / 系统前置）
 
 ### Fixed（README 两处失实/不一致 + 可复现证据卡）
@@ -158,7 +188,7 @@
 
 ### Fixed
 - **precrec 依赖活体暴露**：为什么改——`autoplot(type="roc")` 在本机实跑报错 `packages could not be loaded: precrec`（mlr3viz 画 ROC/PRC 依赖它但 mlr3verse 不自带），已装包复测 PASS 并把 precrec 写进「依赖包提示」与可视化代码块注释。
-- **frontmatter 负面触发路由**（上轮遗留改动，本轮固化）：description 增加「不要用于」清单，与 tidy-data / data-cleaning / tidymodels skill 划清边界，防止误路由。
+- **frontmatter 负面触发路由**（上轮遗留改动，本轮固化）：description 增加「不要用于」清单，与 data-wrangling / data-cleaning / tidymodels skill 划清边界，防止误路由。
 
 ### 验证
 - `Rscript scripts/verify_examples.R` → 5/5 PASS（2026-09-13）

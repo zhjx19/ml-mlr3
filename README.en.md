@@ -7,8 +7,8 @@
 [![version](https://img.shields.io/github/v/tag/zhjx19/ml-mlr3?label=version)](CHANGELOG.md)
 [![Agent Skills](https://img.shields.io/badge/Agent%20Skills-ml--mlr3-blueviolet)](SKILL.md)
 [![gates](https://github.com/zhjx19/ml-mlr3/actions/workflows/gates.yml/badge.svg)](https://github.com/zhjx19/ml-mlr3/actions/workflows/gates.yml)
-[![Live Verify](https://img.shields.io/badge/verify_examples.R-20%2F20%20PASS-brightgreen)](#verification--testing)
-[![Hallucination audit](https://img.shields.io/badge/documented_examples-168%20keys%2C%200%20hallucinated-brightgreen)](examples/EXAMPLE.md)
+[![Live Verify](https://img.shields.io/badge/verify_examples.R-21%2F21%20PASS-brightgreen)](#verification--testing)
+[![Hallucination audit](https://img.shields.io/badge/documented_examples-169%20keys%2C%200%20hallucinated-brightgreen)](examples/EXAMPLE.md)
 [![Evals](https://img.shields.io/badge/evals-6%20prompts%20%2B%20assertions-orange)](#verification--testing)
 [![GitHub](https://img.shields.io/badge/GitHub-zhjx19%2Fml--mlr3-black)](https://github.com/zhjx19/ml-mlr3)
 [![skills.sh](https://skills.sh/b/zhjx19/ml-mlr3)](https://skills.sh/zhjx19/ml-mlr3)
@@ -106,16 +106,17 @@ ml-mlr3/
 │   ├── resampling.md          # CV / repeated CV / holdout / grouped / time-series custom rolling folds
 │   ├── feature-engineering.md + feature-engineering/  # PipeOp preprocessing overview + 4 deep dives
 │   ├── tuning.md              # auto_tuner / auto_fselector
-│   ├── evaluation.md          # metrics, ROC/PRC/residual plots, benchmark, final evaluation
+│   ├── evaluation.md          # metrics, visualization (mlr3viz scenario→plot table), benchmark, final evaluation
 │   └── advanced-workflows.md  # 5 advanced workflows (tuning benchmark / graph tuning / imbalance / joint tuning / early stopping)
 ├── scripts/
-│   ├── verify_examples.R      # skeleton regression: 20 cases run live (with dictionary probes)
+│   ├── verify_examples.R      # skeleton regression: 21 cases run live (with dictionary probes)
 │   ├── list_example_deps.R    # derive required R packages from the examples (CI no longer hand-copies the list)
 │   ├── check_answer_api.R     # hallucinated-key audit: flag lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl() keys not in the dictionary
 │   └── run_evals.mjs          # evals assertion scorer (zero-dependency Node)
 ├── examples/
 │   ├── EXAMPLE.md             # evidence: baseline-vs-skilled replay + raw output of both rulers + re-run commands
 │   └── replay/                # four real answers (baseline-* / skilled-*) consumed directly by the two scorers
+├── assets/                    # evidence: live gate transcripts, the mlr3viz plot catalogue, a diffable SVG card
 └── evals/outputs/             # where eval answers live (eval-<id>.md)
 ```
 
@@ -151,8 +152,9 @@ Most recent real run:
 [PASS] resampling pitfalls · bootstrap/encapsulation fallback/strata/threads
 [PASS] doc wording · spatialsign ownership / deps / validate='test' silence
 [PASS] doc wording · robustify graph accessors / param ids / default overrides
+[PASS] visualization · mlr3viz scenario matrix & preconditions
 
-=== summary: 20/20 PASS ===
+=== summary: 21/21 PASS ===
 ```
 
 **Install dependencies**: the R packages the examples need are derived from the examples themselves, not hand-copied:
@@ -164,7 +166,7 @@ Rscript scripts/list_example_deps.R --install             # install the missing 
 Rscript scripts/list_example_deps.R --mirror --repos <your CRAN mirror>   # preflight: does your mirror have it?
 ```
 
-`.github/workflows/gates.yml` runs the same three gates per push / PR: all 20 cases (**ubuntu + windows**; no trimming cases / folds / budget) + a hallucinated-key audit over every documented example + the assertion-engine selftest; on failure the red light carries its own diagnosis (`FAIL:` / `[hallucinated]` lines and install receipts become annotations).
+`.github/workflows/gates.yml` runs the same three gates per push / PR: all 21 cases (**ubuntu + windows**; no trimming cases / folds / budget) + a hallucinated-key audit over every documented example + the assertion-engine selftest; on failure the red light carries its own diagnosis (`FAIL:` / `[hallucinated]` lines and install receipts become annotations).
 
 **Evals** (the 6 prompts in evals.json cover the standard flow / red-line interception / time series / imbalance / regression / nested-resampling trap): store answers in `evals/outputs/eval-<id>.md`, then:
 
@@ -184,16 +186,16 @@ node scripts/run_evals.mjs              # score every assertion; any FAIL exits 
 Rscript scripts/check_answer_api.R examples/replay/skilled-eval-1.md examples/replay/baseline-eval-1.md
 ```
 
-It probes every first argument of `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` in an answer against the mlr3verse dictionaries, names non-existent keys and appends the dictionary's own "Did you mean" hint, and exits 1. Locally: all 4+4 hallucinated keys in the `baseline-*` pair were caught; feeding `SKILL.md` + all `references/` + the 6 A-group answers + `examples/replay/skilled-*` gives **168 unique keys, 0 hallucinated** (this number changes as the prose changes — trust a fresh run).
+It probes every first argument of `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` in an answer against the mlr3verse dictionaries, names non-existent keys and appends the dictionary's own "Did you mean" hint, and exits 1. Locally: all 4+4 hallucinated keys in the `baseline-*` pair were caught; feeding `SKILL.md` + all `references/` + the 6 A-group answers + `examples/replay/skilled-*` gives **169 unique keys, 0 hallucinated** (this number changes as the prose changes — trust a fresh run).
 
 ## Version & changelog
 
-**Current released version: v2.4.0**. Version and per-release changes live in the repo:
+**Current released version: v2.5.0**. Version and per-release changes live in the repo:
 
 | Where | What |
 |---|---|
 | [`CHANGELOG.md`](CHANGELOG.md) | version-by-version, each explaining **why** it changed, not just what; unreleased work accumulates under `[Unreleased]` |
-| [tags](https://github.com/zhjx19/ml-mlr3/tags) | tagging = releasing: `v2.4.0` ← `v2.3.0` ← `v2.2.0` ← `v2.1.0`; the hero `version` badge reads the latest tag (now `v2.4.0`) |
+| [tags](https://github.com/zhjx19/ml-mlr3/tags) | tagging = releasing: `v2.5.0` ← `v2.4.0` ← `v2.3.0` ← `v2.2.0` ← `v2.1.0`; the hero `version` badge reads the latest tag (now `v2.5.0`) |
 | `version:` in `SKILL.md` frontmatter | the copy that runtimes / marketplaces read |
 
 ## Acknowledgements
