@@ -227,7 +227,9 @@ graph = ppl("robustify", task = task) %>>%
       eval_metric = "logloss")
 glrn = as_learner(graph)
 
-# 关键：验证集只能用 set_validate() 设置——learner 构造参数里没有 validate，写 lrn(..., validate = 0.2) 会报错
+# 关键：验证集用 set_validate() 设置。写 lrn(..., validate = 0.2) 在当前版本不报错
+# （validate 是 Learner 的字段，会被静默写进字段、训练也生效），但它不走参数校验、
+# 也不出现在 param_set 里，别依赖这种写法
 # 0.2 表示 20% 训练数据作为内部验证集，用于早停监控
 set_validate(glrn, validate = 0.2)
 
@@ -252,7 +254,7 @@ at$tuning_result   # 含 internal_tuned_values 列出每轮早停选出的 nroun
 - `nrounds(internal = TRUE)`：将迭代轮次下放给内层调优（早停自动确定停止轮次）
 - `early_stopping_rounds = 30`：连续 30 轮无改善则停止
 - `eval_metric = "logloss"`：内层用连续概率指标（比离散 error 更早捕捉过拟合趋势）
-- `set_validate(glrn, validate = 0.2)`：用 20% 训练数据作内部验证集——只能这样设置，learner 构造参数中已无 `validate`
+- `set_validate(glrn, validate = 0.2)`：用 20% 训练数据作内部验证集，推荐这样设置。`lrn(..., validate = 0.2)` 在当前版本不报错（`validate` 是 Learner 字段，静默生效），但不走参数校验、也不在 `param_set` 里，别依赖它
 - 只调内层轮次、没有普通超参时不要用 `auto_tuner()`：实测报 `To only conduct internal parameter tuning, use tnr('internal')`，改用 `tnr("internal")`
 
 ### 早停日志在哪里：档案里的折模型

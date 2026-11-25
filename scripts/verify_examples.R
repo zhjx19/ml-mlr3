@@ -780,34 +780,50 @@ results = c(
     TRUE
   }),
 
-  ## 并行定档（红线 5）：规划器三档 + mlr3 学习器默认 1 线程 + 并行单位是折
-  ## 为什么单独钉：本轮把"外层并行必须把线程压成 1"改成了"按机器配置自动定档"，
+  ## 并行定档（红线 5）：按拟合耗时与折数定档 + mlr3 学习器默认 1 线程
+  ## 为什么单独钉：本轮把"单折就吃满线程"改成"先量拟合耗时、短拟合不并行、线程只在长拟合上分配"，
   ## 分档公式、默认线程值、折数语义都是正文的字面量，任何一条漂移都会让文档教错档位。
-  run_case("并行定档·plan_parallel 三档与默认线程", {
-    plan_parallel = \(iters, cores = future::availableCores(),
+  run_case("并行定档·plan_parallel 按拟合耗时定档", {
+    plan_parallel = \(iters, fit_secs = NA_real_, cores = future::availableCores(),
       phys = parallel::detectCores(logical = FALSE), mem = NULL, task_bytes = 0) {
       phys = if (is.na(phys)) cores else min(phys, cores)
       mem_cap = if (!is.null(mem) && task_bytes > 0)
         max(1L, floor(mem$avail * 0.5 / task_bytes)) else Inf
-      if (iters <= 1L) return(list(workers = 1L, thread = as.integer(max(1L, phys - 1L))))
+      slow = isTRUE(fit_secs >= 1)                      # 单次拟合 >=1 s 才考虑加线程
+      if (iters <= 1L) {
+        return(list(workers = 1L,
+          thread = if (slow) as.integer(max(1L, phys - 1L)) else 1L))
+      }
       w = as.integer(max(1L, min(iters, cores - 1L, mem_cap)))
-      th = if (w == 1L) max(1L, phys - 1L) else phys %/% w
-      list(workers = w, thread = as.integer(max(1L, th)))
+      th = if (!slow) 1L else if (w == 1L) as.integer(max(1L, phys - 1L)) else
+        as.integer(max(1L, phys %/% w))
+      list(workers = w, thread = th)
     }
 
-    # 1) 三档：1 折不并行 + 满线程；多折 workers = 折数 + 线程按物理核均分；内存不够回单进程
+    # 1) 没量过拟合耗时 -> 保守 1 线程；单折 + 长拟合才吃满核
     p1 = plan_parallel(1L, cores = 20, phys = 14)
-    stopifnot(identical(p1, list(workers = 1L, thread = 13L)))
+    stopifnot(identical(p1, list(workers = 1L, thread = 1L)))
+    p1_slow = plan_parallel(1L, fit_secs = 3, cores = 20, phys = 14)
+    stopifnot(identical(p1_slow, list(workers = 1L, thread = 13L)))
+    # 2) 多折 + 短拟合：workers = 折数，线程 1（中性档）
     p5 = plan_parallel(5L, cores = 20, phys = 14)
-    stopifnot(identical(p5, list(workers = 5L, thread = 2L)))          # 5 x 2 = 10 <= 14
-    p_small = plan_parallel(4L, cores = 8, phys = 4)
+    stopifnot(identical(p5, list(workers = 5L, thread = 1L)))
+    # 3) 多折 + 长拟合且折数 < 物理核：线程按物理核均分
+    p5_slow = plan_parallel(5L, fit_secs = 3, cores = 20, phys = 14)
+    stopifnot(identical(p5_slow, list(workers = 5L, thread = 2L)))      # 5 x 2 = 10 <= 14
+    p_small = plan_parallel(4L, fit_secs = 3, cores = 8, phys = 4)
     stopifnot(p_small$workers == 4L, p_small$thread == 1L)             # 4 x 1 <= 4
-    p_mem = plan_parallel(5L, cores = 20, phys = 14,
+    # 4) 内存不够回单进程，线程按 phys - 1 给
+    p_mem = plan_parallel(5L, fit_secs = 3, cores = 20, phys = 14,
       mem = list(avail = 1e9), task_bytes = 4e8)                       # 0.5 GB / 0.4 GB -> 1 档
-    stopifnot(p_mem$workers == 1L, p_mem$thread == 13L)                 # 回单进程档：留 1 核
+    stopifnot(p_mem$workers == 1L, p_mem$thread == 13L)
     p_one = plan_parallel(5L, cores = 1, phys = 1)                     # 单核机器不越界
     stopifnot(p_one$workers == 1L, p_one$thread == 1L)
-    stopifnot(plan_parallel(5L, cores = 4, phys = NA)$thread == 1L)    # phys 为 NA 时退回 cores
+    stopifnot(plan_parallel(5L, fit_secs = 3, cores = 4, phys = NA)$thread == 1L)  # phys=NA 退回 cores
+
+    # 5) 拟合耗时探针：state$train_time 是秒（正文用它定档）
+    l_tt = lrn("regr.rpart"); l_tt$train(tsk("mtcars"))
+    stopifnot(is.numeric(l_tt$state$train_time), l_tt$state$train_time >= 0)
 
     # 2) 并行单位是折：holdout 恒 1，CV = folds，subsampling = repeats（instantiate 前后一致）
     stopifnot(rsmp("holdout")$iters == 1L)

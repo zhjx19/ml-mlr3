@@ -145,34 +145,50 @@ rsmp$instantiate(train_task); n_unit = rsmp$iters  # 并行单位 = 折数
 - 内层 `rsmp("cv", folds = 5)`：5 折就是 5 个任务，**worker 给 5 个就够**，多给的不会更快。
 - `auto_tuner()` 的候选数**不是**并行单位：`term_evals = 20` 仍然是 20 次串行评估，每次内部按折并行。
 
-### 9.3 三档决策表
+### 9.3 先看拟合耗时，再看折数
+
+并行不改变结果、只改速度；**决定收益的是单次拟合耗时**（20 逻辑核 / 14 物理核，本书案例实测）：
+
+| 单次拟合 | 实例 | 结论 |
+|---|---|---|
+| ≲ 0.1 s | rpart 1.6→3.4 s、nnet 1.6→3.2 s、小数据 ranger 1.5→4.0 s | **别开 future**，Task 序列化开销更大 |
+| 0.1–0.5 s | XGBoost 21k 8.3 vs 8.4 s、LightGBM 2.9k 12.1 vs 12.2 s | 中性，开不开都行 |
+| ≳ 1 s | ranger 图 26.2→12.8 s、CatBoost 图 275.1→118.8 s、特征选择 14.6→10.0 s | 开，1.5–2.3 倍 |
+
+量一次拟合耗时：`learner$train(train_task); learner$state$train_time`（秒）。
 
 | 并行单位数 | future | 学习器线程 | 依据 |
 |---|---|---|---|
-| `n_unit == 1`（holdout / 单次拟合） | **不开**，保持 `sequential` | `set_threads(lrn, n = phys - 1L)` | 没有可分任务；靠学习器内部线程吃满机器 |
-| `n_unit >= 2`（CV / subsampling / repeats） | `plan("multisession", workers = min(n_unit, cores - 1L, 内存档))` | `set_threads(lrn, n = max(1L, phys %/% workers))` | 超过折数的 worker 不更快；workers × 每折线程 ≤ 物理核 |
+| `n_unit == 1`（holdout / 单次拟合） | **不开**，保持 `sequential` | 默认 1；`fit_secs >= 1` 才 `set_threads(n = phys - 1L)` | 没有可分任务；短拟合加线程反而慢 |
+| `n_unit >= 2`（CV / subsampling / repeats） | `plan("multisession", workers = min(n_unit, cores - 1L, 内存档))` | 默认 1；仅当 `fit_secs >= 1` 且 `workers < phys` 时 `n = phys %/% workers` | 超过折数的 worker 不更快；workers × 线程 ≤ 物理核 |
 | benchmark 多学习器 | 同上，`n_unit` 取**总单元数**（学习器 × 任务 × 折） | 同上 | 每个 future 是一个 (任务, 学习器, 折) 单元 |
 
-内存档：每个 worker 各持一份 task 副本，`floor(mem$avail * 0.5 / as.numeric(object.size(train_task)))`。压到 1 就回单进程满线程档，并在输出里写清原因（例如"内存只剩 2 GB，退回单进程 + 13 线程"）。
+内存档：每个 worker 各持一份 task 副本，`floor(mem$avail * 0.5 / as.numeric(object.size(train_task)))`。压到 1 就回单进程，线程按 `phys - 1` 给，并在输出里写清原因。
 
 ```r
-plan_parallel = \(iters, cores = future::availableCores(),
+plan_parallel = \(iters, fit_secs = NA_real_, cores = future::availableCores(),
   phys = parallel::detectCores(logical = FALSE), mem = NULL, task_bytes = 0) {
   phys = if (is.na(phys)) cores else min(phys, cores)
   mem_cap = if (!is.null(mem) && task_bytes > 0)
     max(1L, floor(mem$avail * 0.5 / task_bytes)) else Inf
-  if (iters <= 1L) return(list(workers = 1L, thread = as.integer(max(1L, phys - 1L))))
+  slow = isTRUE(fit_secs >= 1)                      # 单次拟合 ≥1 s 才考虑加线程
+  if (iters <= 1L) {
+    return(list(workers = 1L,
+      thread = if (slow) as.integer(max(1L, phys - 1L)) else 1L))
+  }
   w = as.integer(max(1L, min(iters, cores - 1L, mem_cap)))
-  th = if (w == 1L) max(1L, phys - 1L) else phys %/% w
-  list(workers = w, thread = as.integer(max(1L, th)))
+  th = if (!slow) 1L else if (w == 1L) as.integer(max(1L, phys - 1L)) else
+    as.integer(max(1L, phys %/% w))
+  list(workers = w, thread = th)
 }
 
-p = plan_parallel(rsmp$iters, mem = ps::ps_system_memory(),   # rsmp 先 instantiate；auto_tuner 用 at$resampling$iters
+p = plan_parallel(rsmp$iters, fit_secs = learner$state$train_time,
+                  mem = ps::ps_system_memory(),
                   task_bytes = as.numeric(object.size(train_task)))
 if (p$workers > 1L) {
   future::plan("multisession", workers = p$workers)
 } else {
-  future::plan("sequential")        # 单进程档：靠 p$thread 吃满机器
+  future::plan("sequential")        # 单进程档：线程按 p$thread 定
 }
 set_threads(learner, n = p$thread)
 # ... resample() / benchmark() / auto_tuner() ...
@@ -181,16 +197,26 @@ future::plan("sequential")     # 跑完复原，别把档位留给后面的代�
 
 Windows 用 `multisession`（`multicore` 在 Windows 不可用）。`set_threads()` 对没有线程参数的学习器（rpart / lm 等）是空操作，同一个规划器可以无脑套在所有学习器上；GraphLearner 会把线程数传到图内每个学习器。
 
-### 9.4 学习器线程默认值：mlr3 与裸库不同
+### 9.4 线程给几个：按学习器实测
 
-| 学习器 | 线程参数 | mlr3 学习器默认 | 裸库默认 | 处理 |
+| 学习器 / 数据 | 1 线程 | 4 线程 | 13 线程 | 结论 |
 |---|---|---|---|---|
-| XGBoost | `nthread` | **1** | `NULL`（全核） | 按 §9.3 定档；裸库"不写就全核"在 mlr3 里不成立 |
-| LightGBM | `num_threads` | **1** | `0`（全核） | 同上 |
-| CatBoost | `thread_count` | **1** | `1`（单线程） | 同上；裸库用时必须显式给，否则白跑 |
-| ranger | `num.threads` | **1** | 全核 | 同上 |
+| LightGBM 2.9k×82 | **0.18 s** | 0.54 s | 1.70 s | 加线程慢 9.4 倍 |
+| XGBoost 21k×18 | **0.22 s** | 0.21 s | 0.30 s | 1~4 无差 |
+| XGBoost 105k×30 | 3.52 s | **2.21 s** | 2.94 s | 4 线程 1.6 倍 |
+| CatBoost 20k×14 | 3.87 s | **3.12 s** | 3.23 s | 4 线程 1.24 倍 |
+| ranger 20k×14（300 树） | 3.17 s | 1.24 s | **0.85 s** | 线程敏感（3.7 倍） |
 
-现场探（前两个随 mlr3verse 就位，后两个要 `mlr3extralearners`）：`lrn("classif.xgboost")$param_set$values$nthread`、`lrn("classif.ranger")$param_set$values$num.threads`，以及 `regr.lightgbm` 的 `num_threads`、`regr.catboost` 的 `thread_count`——实测都是 `1`。所以"线程越少越稳"是错的：**正确口径是总线程不超过物理核**。裸库层面显式给小数反而慢（XGBoost −24% / LightGBM −54%），说明压线程本身就是一次性能损失，只在折并行时（用并发进程换线程）才值得。
+**mlr3 与裸库的默认值不同**：
+
+| 学习器 | 线程参数 | mlr3 学习器默认 | 裸库默认 |
+|---|---|---|---|
+| XGBoost | `nthread` | **1** | `NULL`（全核） |
+| LightGBM | `num_threads` | **1** | `0`（全核） |
+| CatBoost | `thread_count` | **1** | `1` |
+| ranger | `num.threads` | **1** | 全核 |
+
+现场探（前两个随 mlr3verse 就位，后两个要 `mlr3extralearners`）：`lrn("classif.xgboost")$param_set$values$nthread`、`lrn("classif.ranger")$param_set$values$num.threads`，以及 `regr.lightgbm` 的 `num_threads`、`regr.catboost` 的 `thread_count`——实测都是 `1`。所以既不能"以为不写就是全核"，也不能"以为压成 1 更稳"：**按 §9.3 的拟合耗时定档，总线程 ≤ 物理核**。
 
 `set_threads()` 的形参是 `(x, n = availableCores(), ...)`——写成 `set_threads(learner, nthreads = 1)` 不报错，错名被 `...` 吞掉、`n` 落到默认值，线程反而被设成**满核**（20 核机器实测 `num.threads` = 20）。线程参数名不确定就现探 `learner$param_set$ids(tags = "threads")`，映射交给 `set_threads()` 做。
 

@@ -82,7 +82,7 @@ split the data, compare a few algorithms, then evaluate.
 | Test set stays sealed | During development, no predict / summary / plot / tuning on `split$test`; final evaluation **must ask the user first** and is run once after permission |
 | R6 reference semantics | Deep-copy with `$clone(deep = TRUE)` before modifying a Task/Learner; never pollute the original |
 | No data leakage | All preprocessing (imputation / encoding / scaling / PCA / SMOTE / feature selection) goes inside a PipeOp graph, fitted within resampling |
-| Size parallelism to the machine | Probes `availableCores()` / physical cores / `ps_system_memory()`, then tiers by resampling folds: one fold → no `future`, use `set_threads()` to use the machine; many folds → `workers = folds`, threads split across physical cores; restore when done |
+| Size parallelism to the machine | Measures one fit first (`state$train_time`): ≲0.1 s → stay sequential, ≳1 s → parallelize; `workers = folds`, threads default to 1 and split across physical cores only for long fits |
 | Nested resampling purpose | Unbiased comparison only; real tuning goes through `auto_tuner$train()` |
 
 It will not do: deep learning, non-tabular data, tidymodels workflows (it points you to that ecosystem instead), or lightweight exploratory grouped modeling (one `dplyr` `nest` + `map` is enough — no mlr3 needed).
@@ -157,7 +157,7 @@ Most recent real run:
 [PASS] doc wording · spatialsign ownership / deps / validate='test' silence
 [PASS] doc wording · robustify graph accessors / param ids / default overrides
 [PASS] visualization · mlr3viz scenario matrix & preconditions
-[PASS] parallel tiering · plan_parallel's three tiers & default threads
+[PASS] parallel tiering · plan_parallel by measured fit time
 [PASS] early stopping · internal rounds & fold logs from the archive
 [PASS] interpretation · kernelshap fast pred_fun & additivity
 
@@ -197,14 +197,16 @@ It probes every first argument of `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` in
 
 ## Version & changelog
 
-**Current released version: v2.6.0**. Version and per-release changes live in the repo:
+**Current released version: v2.6.1**. Version and per-release changes live in the repo:
 
-**What v2.6.0 adds**: parallelism moves from "if you parallelize over folds, pin learner threads to 1" to **tiering from the actual machine** (one fold → no `future`, use `set_threads()`; many folds → `workers = folds` and threads split across physical cores; includes `plan_parallel()` and the mirai-backend caveat); a new **SHAP template** (`kernelshap` + `shapviz`, with a measured ~90× faster `pred_fun` and an additivity check); and the missing "where do early-stopping logs live" answer (archive fold models, `attributes()$evaluation_log`, node-prefixed keys). Skeleton regression goes 21 → **24 cases**.
+**What v2.6.1 fixes**: parallelism is tiered by **measured fit time** rather than "one fold → max threads" — ≲0.1 s stays sequential, ≳1 s is worth parallelizing, and learner threads default to 1 (LightGBM gets 9.4× slower with threads on small data; sub-100 ms fits run 1.5–2.6× slower with `future`). Also corrects a false claim about `validate =` in the `lrn()` constructor.
+
+**What v2.6.0 adds**: parallel tiering from the machine, a new **SHAP template** (`kernelshap` + `shapviz`, with a measured ~90× faster `pred_fun` and an additivity check), and the missing "where do early-stopping logs live" answer. Skeleton regression goes 21 → **24 cases**.
 
 | Where | What |
 |---|---|
 | [`CHANGELOG.md`](CHANGELOG.md) | version-by-version, each explaining **why** it changed, not just what; unreleased work accumulates under `[Unreleased]` |
-| [tags](https://github.com/zhjx19/ml-mlr3/tags) | tagging = releasing: `v2.6.0` ← `v2.5.0` ← `v2.4.0` ← `v2.3.0` ← `v2.2.0` ← `v2.1.0`; the hero `version` badge reads the latest tag (now `v2.6.0`) |
+| [tags](https://github.com/zhjx19/ml-mlr3/tags) | tagging = releasing: `v2.6.1` ← `v2.6.0` ← `v2.5.0` ← `v2.4.0` ← `v2.3.0` ← `v2.2.0` ← `v2.1.0`; the hero `version` badge reads the latest tag (now `v2.6.1`) |
 | `version:` in `SKILL.md` frontmatter | the copy that runtimes / marketplaces read |
 
 ## Acknowledgements

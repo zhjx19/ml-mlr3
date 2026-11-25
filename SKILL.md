@@ -6,7 +6,7 @@ description: >-
   feature engineering, wire early stopping into tuning, and explain the model
   with SHAP, while the test set stays untouched until authorized, every
   preprocessing step sits inside the resampling, and parallelism is tiered from
-  measured cores/memory. Use when the user needs mlr3 / mlr3verse /
+  measured fit time, cores and memory. Use when the user needs mlr3 / mlr3verse /
   GraphLearner / PipeOp / auto_tuner / auto_fselector / ppl("robustify") /
   early stopping / kernelshap / shapviz work.
   用户需要用 R mlr3verse 框架做表格数据机器学习建模——构建预测模型、比较算法、
@@ -14,7 +14,7 @@ description: >-
   不要用于：深度学习、非表格数据（图像/文本/NLP）；tidymodels 工作流（改用 tidymodels 生态技能）；
   轻量探索性分组建模（dplyr nest + map 即可）；数据清洗本身。
 license: Apache-2.0
-version: 2.6.0
+version: 2.6.1
 ---
 
 # mlr3verse 表格数据机器学习建模
@@ -149,54 +149,71 @@ rr_nested = resample(train_task, at, rsmp("cv", folds = 3))
 rr_nested$aggregate(msr("classif.auc"))  # 无偏估计调参后泛化误差
 ```
 
-### 红线 5：并行按机器配置自动定档（粒度是折，不是候选）
+### 红线 5：并行按机器配置自动定档（先量拟合耗时，再量核）
 
-并行不必征求授权；要防两个坑——**凭空假设机器空闲**，以及它的反面：**mlr3 的学习器构造时一律是 1 线程**（`classif.xgboost` 的 `nthread`、`regr.lightgbm` 的 `num_threads`、`regr.catboost` 的 `thread_count`、`ranger` 的 `num.threads` 实测值都是 `1`；底层库"默认全核"的说法在 mlr3 里被覆盖了）。不探测、不定档，跑的就是单核档。
+并行不必征求授权；要防两个坑——**凭空假设机器空闲**，以及它的反面：**mlr3 的学习器构造时一律 1 线程**（`classif.xgboost` 的 `nthread`、`regr.lightgbm` 的 `num_threads`、`regr.catboost` 的 `thread_count`、`ranger` 的 `num.threads` 实测值都是 `1`；底层库"默认全核"的说法在 mlr3 里被覆盖了）。所以"开不开并行"首先看**单次拟合有多长**，其次才看核数。
 
-先量三个数，再按**并行单位数**分档：
+先量三个数 + 一次拟合：
 
 ```r
 cores = future::availableCores()                  # 额度上限，不是当前空闲
 phys  = parallel::detectCores(logical = FALSE)    # 物理核（NA 时退回 cores）
 mem   = ps::ps_system_memory()                    # total / avail / percent：真实内存负载
 rsmp$instantiate(train_task); n_unit = rsmp$iters  # 并行单位 = 折数；benchmark 再乘学习器/任务数
+learner$train(train_task); fit_secs = learner$state$train_time  # 单次拟合耗时（秒）
 ```
+
+| 单次拟合耗时 | 判定（20 逻辑核 / 14 物理核实测） |
+|---|---|
+| ≲ 0.1 s（rpart / glmnet / nnet / kknn / naive_bayes 在小数据上） | **别开 future**：序列化 Task 的开销更大（rpart 1.6→3.4 s、nnet 1.6→3.2 s、ranger 小数据 1.5→4.0 s） |
+| 0.1–0.5 s（XGBoost / LightGBM 在 2 万行以内） | 中性：开不开都行，worker 给折数即可 |
+| ≳ 1 s（CatBoost、大样本 ranger、含重预处理的图） | 开折并行，实测 1.5–2.3 倍（ranger 图 26.2→12.8 s、CatBoost 图 275.1→118.8 s、特征选择 14.6→10.0 s） |
+
+分档规则：
 
 | 并行单位数 | future | 学习器线程 | 依据 |
 |---|---|---|---|
-| `n_unit == 1`（holdout / 单次拟合） | **不开**，保持 `sequential` | `set_threads(lrn, n = phys - 1L)` | 1 折没有可分的任务，开 future 只把 Task 反复序列化进 worker——书中房价案例 20 个候选 41.4 s → 10.1 s（关掉快 4 倍） |
-| `n_unit >= 2`（CV / subsampling / repeats） | `plan("multisession", workers = min(n_unit, cores - 1L, 内存档))` | `set_threads(lrn, n = max(1L, phys %/% workers))` | worker 超过折数不会更快；workers × 每折线程 ≤ 物理核，超了互相争抢 |
+| `n_unit == 1`（holdout / 单次拟合） | **不开**，保持 `sequential` | 默认 1；`fit_secs >= 1` 才 `set_threads(n = phys - 1L)` | 1 折没有可分的任务，开 future 只把 Task 反复序列化进 worker——书中房价案例 20 个候选 41.4 s → 10.1 s（关掉快 4 倍） |
+| `n_unit >= 2`（CV / subsampling / repeats） | `plan("multisession", workers = min(n_unit, cores - 1L, 内存档))` | 默认 1；仅当 `fit_secs >= 1` 且 `workers < phys` 时 `n = max(1L, phys %/% workers)` | worker 超过折数不会更快；workers × 每折线程 ≤ 物理核，超了互相争抢 |
 | benchmark 多学习器 | 同上，`n_unit` 取**总单元数**（学习器 × 任务 × 折） | 同上 | `benchmark()` 的每个 future 是一个 (任务, 学习器, 折) 单元 |
 
-内存档：每个 worker 各持一份 task 副本，`floor(mem$avail * 0.5 / as.numeric(object.size(train_task)))`；`percent` 已高就再往下压，压到 1 就回单进程满线程档，并在输出里写清原因。
+线程不是越多越快，也不是越少越稳（单次 `$train` 实测）：**LightGBM 在 2.9k×82 上 1→13 线程 0.18 s → 1.70 s（慢 9.4 倍）**；XGBoost 21k 行 1→4 线程无差、10.5 万行 4 线程快 1.6 倍；CatBoost 4 线程快 1.24 倍；ranger 线程敏感（3.7 倍）但 5 折并行已占满核，再加每折线程不涨（5w×1 12.8 s vs 5w×2 12.9 s）。
 
-直接抄这个规划器，把选中的档写进结果（`workers` / `thread` 两个数就是依据）：
+内存档：每个 worker 各持一份 task 副本，`floor(mem$avail * 0.5 / as.numeric(object.size(train_task)))`；`percent` 已高就再往下压，压到 1 就回单进程，并在输出里写清原因。
+
+直接抄这个规划器，把选中的档写进结果（`workers` / `thread` 两个数就是依据；`fit_secs = NA` 表示没量过，按最保守的 1 线程档）：
 
 ```r
-plan_parallel = \(iters, cores = future::availableCores(),
+plan_parallel = \(iters, fit_secs = NA_real_, cores = future::availableCores(),
   phys = parallel::detectCores(logical = FALSE), mem = NULL, task_bytes = 0) {
   phys = if (is.na(phys)) cores else min(phys, cores)
   mem_cap = if (!is.null(mem) && task_bytes > 0)
     max(1L, floor(mem$avail * 0.5 / task_bytes)) else Inf
-  if (iters <= 1L) return(list(workers = 1L, thread = as.integer(max(1L, phys - 1L))))
+  slow = isTRUE(fit_secs >= 1)                      # 单次拟合 ≥1 s 才考虑加线程
+  if (iters <= 1L) {
+    return(list(workers = 1L,
+      thread = if (slow) as.integer(max(1L, phys - 1L)) else 1L))
+  }
   w = as.integer(max(1L, min(iters, cores - 1L, mem_cap)))
-  th = if (w == 1L) max(1L, phys - 1L) else phys %/% w
-  list(workers = w, thread = as.integer(max(1L, th)))
+  th = if (!slow) 1L else if (w == 1L) as.integer(max(1L, phys - 1L)) else
+    as.integer(max(1L, phys %/% w))
+  list(workers = w, thread = th)
 }
 
-p = plan_parallel(rsmp$iters, mem = ps::ps_system_memory(),   # rsmp 先 instantiate；auto_tuner 用 at$resampling$iters
+p = plan_parallel(rsmp$iters, fit_secs = learner$state$train_time,
+                  mem = ps::ps_system_memory(),
                   task_bytes = as.numeric(object.size(train_task)))
 if (p$workers > 1L) {
   future::plan("multisession", workers = p$workers)
 } else {
-  future::plan("sequential")        # 单进程档：靠 p$thread 吃满机器
+  future::plan("sequential")        # 单进程档：线程按 p$thread 定
 }
 set_threads(learner, n = p$thread)
 # ... resample() / benchmark() / auto_tuner() ...
 future::plan("sequential")     # 跑完复原，别把档位留给后面的代码
 ```
 
-三个线程/后端坑（实测）：① `set_threads()` 形参是 `(x, n, ...)`，写成 `set_threads(learner, nthreads = 1)` 不报错——错名被 `...` 吞掉、`n` 落回默认 `availableCores()`，线程反而拉满；② 别为了"稳"乱压线程：裸库层面 xgboost / lightgbm 默认就是全核，显式给小值实测慢 24% / 54%，正确口径是"总线程不超过物理核"，不是"越少越稳"；③ 环境里若已设 `mirai` daemons，mlr3 会**绕过 future** 直接走 mirai（`getOption("mlr3.mirai_parallelization")`），此时 `future::plan()` 不生效——先确认走哪条道，别两套都开着。
+三个线程/后端坑（实测）：① `set_threads()` 形参是 `(x, n, ...)`，写成 `set_threads(learner, nthreads = 1)` 不报错——错名被 `...` 吞掉、`n` 落回默认 `availableCores()`，线程反而拉满；② 别为了"用满核"乱加线程：LightGBM 小数据加线程是负收益，正确口径是"总线程 ≤ 物理核"且"只在长拟合上分配"；③ 环境里若已设 `mirai` daemons，mlr3 会**绕过 future** 直接走 mirai（`getOption("mlr3.mirai_parallelization")`），此时 `future::plan()` 不生效——先确认走哪条道，别两套都开着。
 
 （没装 `ps` 就别探测、按保守档取；`future` **没有** `availableMemory()`，`memory.limit()` 已不再支持——实测只告警并返回 `Inf`——两者都不能当负载信号。并行粒度是**折**：候选数再多也不会并行，`auto_tuner()` 的候选是一个个串行评估的。）
 
@@ -497,8 +514,9 @@ skill.md 保持精简；遇到以下具体需求时，读取对应知识文件�
 | PipeOp 用 `|>` 串联 | `%>>%` |
 | 手写嵌套 CV | `auto_tuner()` + 外层 `resample()` |
 | 假设机器空闲就开满并行 | 先探测 `availableCores()` + `ps_system_memory()` 再定 workers |
-| 以为不写线程参数就在用满核 | mlr3 学习器默认全是 1 线程：单折 `set_threads(n = phys - 1L)`，多折按折数分配 |
+| 以为不写线程参数就在用满核 | mlr3 学习器默认 1 线程；线程按 `fit_secs` 定档，别默认给满 |
 | holdout 也开 future 并行 | 1 折没有并行粒度，`plan("sequential")` 反而快 4 倍 |
+| 毫秒级拟合也开 future / 加线程 | 拟合 ≲ 0.1 s 就单进程；LightGBM 小数据加线程慢 9 倍 |
 | 用 `predict_newdata()` 喂 `kernelshap` | 直接调底层 booster 的 `predict`（实测快约 90 倍） |
 | 把 SHAP 当因果 / 不写参照人群 | 解释模型而非因果；写明 `bg_X` 是谁 |
 | 去最终模型里找早停曲线 | 从 `at$archive$learners()` 取折模型（§5） |
@@ -513,7 +531,7 @@ skill.md 保持精简；遇到以下具体需求时，读取对应知识文件�
 - [ ] 图管道是否使用 `%>>%`，末端是否 `as_learner()`？
 - [ ] 调参/特征选择是否使用 `auto_tuner()` / `auto_fselector()`？
 - [ ] 若要报告调参流程泛化性能，是否使用嵌套重抽样？
-- [ ] 并行是否按机器配置定档：先探 `availableCores()` / 物理核 / `ps_system_memory()`，单折不并行、多折 `workers = 折数`、`workers × 线程 ≤ 物理核`？
+- [ ] 并行是否先量单次拟合耗时（`state$train_time`）再定档：≲0.1 s 不并行、≳1 s 才加线程，`workers = 折数`、`workers × 线程 ≤ 物理核`？
 - [ ] 种子是否避开了 1、42、123 等常见值？
 - [ ] 嵌套重抽样是否仅用于无偏比较，超参数调优是否用 `$train(task)`？
 - [ ] 对复杂 GraphLearner 是否利用了 `ppl("branch")` 分支路由调参？

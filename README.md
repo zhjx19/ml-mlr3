@@ -83,7 +83,7 @@ ln -s "$(pwd)/ml-mlr3" <你的-agent-skills-目录>/ml-mlr3
 | 测试集绝对隔离 | 开发期禁止对 `split$test` 做预测/汇总/可视化/调参；最终评估**必须先询问用户**，获许可后只评估一次 |
 | R6 引用语义 | 修改 Task/Learner 前必须 `$clone(deep = TRUE)`，不污染原对象 |
 | 防数据泄露 | 一切预处理（插补/编码/标准化/PCA/SMOTE/特征选择）封装进 PipeOp 图，在重抽样内部拟合 |
-| 并行按机器定档 | 自动探测 `availableCores()` / 物理核 / `ps_system_memory()`，按重抽样折数分档：单折不并行、靠 `set_threads()` 吃满机器；多折 `workers = 折数`、线程按物理核均分，跑完复原 |
+| 并行按机器定档 | 先量单次拟合耗时（`state$train_time`）：≲0.1 s 不并行、≳1 s 才开；多折 `workers = 折数`，线程默认 1，仅长拟合按物理核均分 |
 | 嵌套重抽样用途 | 只做无偏比较；真正调参走 `auto_tuner$train()` |
 
 不会做：深度学习、非表格数据、tidymodels 工作流（指引用户改用对应生态技能）、轻量探索性分组建模（一个 dplyr `nest` + `map` 就够，不必上 mlr3）。
@@ -159,7 +159,7 @@ Rscript scripts/verify_examples.R
 [PASS] 文档口径·spatialsign 归属 / 依赖包 / validate='test' 静默
 [PASS] 文档口径·robustify 图访问器 / 参数 id / 覆盖默认值
 [PASS] 可视化·mlr3viz 场景矩阵与前置条件
-[PASS] 并行定档·plan_parallel 三档与默认线程
+[PASS] 并行定档·plan_parallel 按拟合耗时定档
 [PASS] 早停·档案里的内部轮次与折日志
 [PASS] 模型解释·kernelshap 快速 pred_fun 与可加性
 
@@ -199,14 +199,16 @@ Rscript scripts/check_answer_api.R examples/replay/skilled-eval-1.md examples/re
 
 ## 版本与更新历史
 
-**当前发布版本：v2.6.0**。版本号与逐版改动都在仓库里：
+**当前发布版本：v2.6.1**。版本号与逐版改动都在仓库里：
 
-**v2.6.0 新增什么**：并行从"外层并行就把线程压成 1"改为**按机器配置自动定档**（单折靠 `set_threads` 吃满机器、多折 `workers = 折数`、线程按物理核均分，附 `plan_parallel()` 与 mirai 后端坑）；新增 **SHAP 解释模板**（`kernelshap` + `shapviz`，实测快约 90 倍的 `pred_fun`、可加性校验）；早停补上**日志到底在哪**（档案折模型、`attributes()$evaluation_log`、带节点前缀的键名）。骨架回归同步 21 → **24 例**。
+**v2.6.1 修正什么**：并行定档不再"单折就吃满线程"，改为**先量单次拟合耗时**——≲0.1 s 不并行、≳1 s 才开，线程默认 1（实测 LightGBM 小数据加线程慢 9.4 倍、毫秒级拟合开 future 慢 1.5–2.6 倍）；并修正一条 validate 写法的失实说明。
+
+**v2.6.0 新增什么**：并行从"外层并行就把线程压成 1"改为**按机器配置自动定档**（附 `plan_parallel()` 与 mirai 后端坑）；新增 **SHAP 解释模板**（`kernelshap` + `shapviz`，实测快约 90 倍的 `pred_fun`、可加性校验）；早停补上**日志到底在哪**（档案折模型、`attributes()$evaluation_log`、带节点前缀的键名）。骨架回归同步 21 → **24 例**。
 
 | 在哪看 | 内容 |
 |---|---|
 | [`CHANGELOG.md`](CHANGELOG.md) | 逐版记录，**每版讲清"为什么改"**，不只是改动清单；未发布的改动堆在 `[Unreleased]` 段 |
-| [tags](https://github.com/zhjx19/ml-mlr3/tags) | 打 tag 即发版：`v2.6.0` ← `v2.5.0` ← `v2.4.0` ← `v2.3.0` ← `v2.2.0` ← `v2.1.0`；首屏 `version` 徽章读最新 tag（现为 `v2.6.0`） |
+| [tags](https://github.com/zhjx19/ml-mlr3/tags) | 打 tag 即发版：`v2.6.1` ← `v2.6.0` ← `v2.5.0` ← `v2.4.0` ← `v2.3.0` ← `v2.2.0` ← `v2.1.0`；首屏 `version` 徽章读最新 tag（现为 `v2.6.1`） |
 | `SKILL.md` frontmatter 的 `version:` | 给 runtime / 市场读的那一份 |
 
 ## 致谢
