@@ -7,8 +7,8 @@
 [![version](https://img.shields.io/github/v/tag/zhjx19/ml-mlr3?label=version)](CHANGELOG.md)
 [![Agent Skills](https://img.shields.io/badge/Agent%20Skills-ml--mlr3-blueviolet)](SKILL.md)
 [![gates](https://github.com/zhjx19/ml-mlr3/actions/workflows/gates.yml/badge.svg)](https://github.com/zhjx19/ml-mlr3/actions/workflows/gates.yml)
-[![Live Verify](https://img.shields.io/badge/verify_examples.R-21%2F21%20PASS-brightgreen)](#验证与测试)
-[![Hallucination audit](https://img.shields.io/badge/documented_examples-169%20keys%2C%200%20hallucinated-brightgreen)](examples/EXAMPLE.md)
+[![Live Verify](https://img.shields.io/badge/verify_examples.R-24%2F24%20PASS-brightgreen)](#验证与测试)
+[![Hallucination audit](https://img.shields.io/badge/documented_examples-172%20keys%2C%200%20hallucinated-brightgreen)](examples/EXAMPLE.md)
 [![Evals](https://img.shields.io/badge/evals-6%20prompts%20%2B%20assertions-orange)](#验证与测试)
 [![GitHub](https://img.shields.io/badge/GitHub-zhjx19%2Fml--mlr3-black)](https://github.com/zhjx19/ml-mlr3)
 [![skills.sh](https://skills.sh/b/zhjx19/ml-mlr3)](https://skills.sh/zhjx19/ml-mlr3)
@@ -35,7 +35,8 @@
 ## 它会交付什么
 
 - 一套从 `partition()` 划分 → PipeOp 特征工程 → `benchmark()` 比较算法 → `auto_tuner()` 调参 → 嵌套重抽样无偏评估 → 授权后一次性测试集评估的**完整可运行 R 代码**
-- 分类/回归两个**最小骨架**（已实测），复杂需求自动路由到 10 个 references 文件
+- 分类/回归两个**最小骨架**（已实测），复杂需求自动路由到 11 个 references 文件
+- 早停混合调优与 SHAP 解释的**模板**（含三条实测坑：图学习器的模型包装、早停日志的真实位置、快约 90 倍的 `pred_fun`）
 - 主动拦截违规请求：测试集直评、图外预处理、没量资源就开满并行
 
 ## 快速开始
@@ -72,6 +73,8 @@ ln -s "$(pwd)/ml-mlr3" <你的-agent-skills-目录>/ml-mlr3
 - 「嵌套重抽样怎么做」
 - 「GraphLearner / PipeOp / 图学习器怎么搭」
 - 「特征选择和调参一起做」
+- 「提升树早停怎么接调优 / 最终模型为什么没有早停曲线」
+- 「mlr3 模型怎么做 SHAP 解释」
 
 ## 安全边界
 
@@ -80,7 +83,7 @@ ln -s "$(pwd)/ml-mlr3" <你的-agent-skills-目录>/ml-mlr3
 | 测试集绝对隔离 | 开发期禁止对 `split$test` 做预测/汇总/可视化/调参；最终评估**必须先询问用户**，获许可后只评估一次 |
 | R6 引用语义 | 修改 Task/Learner 前必须 `$clone(deep = TRUE)`，不污染原对象 |
 | 防数据泄露 | 一切预处理（插补/编码/标准化/PCA/SMOTE/特征选择）封装进 PipeOp 图，在重抽样内部拟合 |
-| 并行先量资源 | 自动开并行，但 `future::plan()` 前必须探测 `availableCores()` + `ps_system_memory()`，按真实负载定 workers；外层按折并行时 `set_threads(learner, n = 1L)` |
+| 并行按机器定档 | 自动探测 `availableCores()` / 物理核 / `ps_system_memory()`，按重抽样折数分档：单折不并行、靠 `set_threads()` 吃满机器；多折 `workers = 折数`、线程按物理核均分，跑完复原 |
 | 嵌套重抽样用途 | 只做无偏比较；真正调参走 `auto_tuner$train()` |
 
 不会做：深度学习、非表格数据、tidymodels 工作流（指引用户改用对应生态技能）、轻量探索性分组建模（一个 dplyr `nest` + `map` 就够，不必上 mlr3）。
@@ -108,9 +111,10 @@ ml-mlr3/
 │   ├── feature-engineering.md + feature-engineering/  # PipeOp 预处理总览与 4 个细分
 │   ├── tuning.md              # auto_tuner / auto_fselector
 │   ├── evaluation.md          # 指标、可视化（mlr3viz 场景→图表）、benchmark、最终评估
+│   ├── interpretation.md      # 模型解释：SHAP 四步模板、快 90 倍的 pred_fun、可加性校验
 │   └── advanced-workflows.md  # 5 大进阶工作流（调优benchmark/图调参/不平衡/联合调优/早停）
 ├── scripts/
-│   ├── verify_examples.R      # 骨架回归：21 个案例一键实跑（含字典探针，防文档写回已移除的 API）
+│   ├── verify_examples.R      # 骨架回归：24 个案例一键实跑（含字典探针，防文档写回已移除的 API）
 │   ├── list_example_deps.R    # 从示例本身算出要装哪些 R 包（CI 依赖清单不再手抄）
 │   ├── check_answer_api.R     # 幻觉键体检：抓回答里字典中不存在的 lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()
 │   └── run_evals.mjs          # evals 断言评分器（零依赖 Node）
@@ -120,7 +124,7 @@ ml-mlr3/
 ├── assets/                    # 证据件：门禁实跑转录、mlr3viz 可视化目录矩阵、可 diff 的 SVG 证据卡
 ├── evals/outputs/             # 评测回答存放处（eval-<id>.md）
 └── .github/workflows/
-    └── gates.yml              # CI：全量 21 例（ubuntu + windows）+ 全库幻觉键体检 + 断言引擎自检
+    └── gates.yml              # CI：全量 24 例（ubuntu + windows）+ 全库幻觉键体检 + 断言引擎自检
 ```
 
 ## 验证与测试
@@ -155,8 +159,11 @@ Rscript scripts/verify_examples.R
 [PASS] 文档口径·spatialsign 归属 / 依赖包 / validate='test' 静默
 [PASS] 文档口径·robustify 图访问器 / 参数 id / 覆盖默认值
 [PASS] 可视化·mlr3viz 场景矩阵与前置条件
+[PASS] 并行定档·plan_parallel 三档与默认线程
+[PASS] 早停·档案里的内部轮次与折日志
+[PASS] 模型解释·kernelshap 快速 pred_fun 与可加性
 
-=== 汇总：21/21 PASS ===
+=== 汇总：24/24 PASS ===
 ```
 
 **装依赖**：示例要的 R 包由脚本从示例本身算出，不手抄：
@@ -168,7 +175,7 @@ Rscript scripts/list_example_deps.R --install             # 装上缺的包
 Rscript scripts/list_example_deps.R --mirror --repos <你的 CRAN 镜像>   # 预飞：你的镜像里有没有它
 ```
 
-`.github/workflows/gates.yml` 每次 push / PR 跑同样三道门禁：**全量** 21 例（ubuntu + windows，不砍案例 / 折数 / 预算）+ 全库幻觉键体检 + 断言引擎自检；失败时红灯自带病因（`FAIL:` / `[幻觉]` 行与安装回执写成 annotation）。
+`.github/workflows/gates.yml` 每次 push / PR 跑同样三道门禁：**全量** 24 例（ubuntu + windows，不砍案例 / 折数 / 预算）+ 全库幻觉键体检 + 断言引擎自检；失败时红灯自带病因（`FAIL:` / `[幻觉]` 行与安装回执写成 annotation）。
 
 **评测**（evals.json 的 6 个 prompt 覆盖标准流程/红线拦截/时间序列/不平衡/回归/嵌套重抽样陷阱）：把回答存进 `evals/outputs/eval-<id>.md`，然后：
 
@@ -188,7 +195,7 @@ node scripts/run_evals.mjs              # 逐断言评分，任一 FAIL 退出�
 Rscript scripts/check_answer_api.R examples/replay/skilled-eval-1.md examples/replay/baseline-eval-1.md
 ```
 
-它把回答里所有 `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` 的首参逐个对着 mlr3verse 字典探测，键不存在就点名并附字典自己的 "Did you mean" 提示，退出码 1。本机实测：`baseline-*` 两份 4+4 个幻觉键全部被抓；把 `SKILL.md` + 全部 `references/` + A 组 6 份 + `examples/replay/skilled-*` 一起喂进去，**169 个唯一键 0 幻觉**（这个数随正文增删而变，以现跑为准）。
+它把回答里所有 `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` 的首参逐个对着 mlr3verse 字典探测，键不存在就点名并附字典自己的 "Did you mean" 提示，退出码 1。本机实测：`baseline-*` 两份 4+4 个幻觉键全部被抓；把 `SKILL.md` + 全部 `references/` + A 组 6 份 + `examples/replay/skilled-*` 一起喂进去，**172 个唯一键 0 幻觉**（这个数随正文增删而变，以现跑为准）。
 
 ## 版本与更新历史
 

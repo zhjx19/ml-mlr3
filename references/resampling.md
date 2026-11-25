@@ -120,25 +120,91 @@ rr_nested$aggregate(msr("classif.auc"))
 
 内层 CV 用于选超参数，外层 CV 用于估计调参流程性能。不要混淆两者。
 
-## 9. 并行：先量资源，再定 workers
+## 9. 并行：按机器配置自动定档
 
-重抽样和调参可以自动并行，不必征求授权；要防的是**凭空假设机器空闲**。先看两个数——CPU 额度是上限、不代表空闲，内存那一项才是真实负载信号：
+重抽样和调参可以自动并行，不必征求授权；要防两个坑——**凭空假设机器空闲**，以及它的反面：**mlr3 的学习器构造时一律是 1 线程**。不探测、不定档，跑的就是单核档。
 
-```r
-future::availableCores()   # CPU 额度（本机实测恒为 20，即使机器正忙）
-ps::ps_system_memory()     # total / avail / percent（实测 percent 73.1）
-future::plan("multisession", workers = n)   # Windows 用 multisession
-```
-
-`n` 从 `availableCores() - 1L` 起步，按 `percent` 和"用户是否在同一机器上干别的事"下调；装不下就宁可 `workers = 1L` 并说明原因，跑完 `future::plan("sequential")` 复原。两个探测的坑：`future` **没有** `availableMemory()`（只有 `availableCores` / `availableWorkers`），`memory.limit()` 已不再支持（实测只告警并返回 `Inf`）——都不能当负载用；没装 `ps` 就直接保守取档，别为了探测硬装包。
-
-粒度是**重抽样迭代（折）**：`resample()` / `benchmark()` / `auto_tuner()` 把「一折训练+预测」作为一个 future 派发。外层并行开起来后，learner 内部线程必须压成 1，否则每个 worker 各自开满核互相争抢：
+### 9.1 先量三个数 + 一个并行单位数
 
 ```r
-set_threads(learner, n = 1L)      # 单个 learner 或 learner 列表都支持
+cores = future::availableCores()                  # 额度上限，不是当前空闲（本机实测恒为 20，即使机器正忙）
+phys  = parallel::detectCores(logical = FALSE)    # 物理核（本机 20 逻辑 / 14 物理；NA 时退回 cores）
+mem   = ps::ps_system_memory()                    # total / avail / percent（实测 percent 56.9）
+rsmp$instantiate(train_task); n_unit = rsmp$iters  # 并行单位 = 折数
 ```
 
-`set_threads()` 的形参是 `(x, n = availableCores(), ...)`——写成 `set_threads(learner, nthreads = 1)` 不报错，错名被 `...` 吞掉、`n` 落到默认值，线程反而被设成**满核**（20 核机器实测 `num.threads` = 20）。不确定参数名就现探 `learner$param_set$ids(tags = "threads")`，映射交给 `set_threads()` 做。
+`percent` 才是真实负载信号：`availableCores()` 报的是额度，不是"现在有空"。两个探测的坑：`future` **没有** `availableMemory()`（只有 `availableCores` / `availableWorkers`），`memory.limit()` 已不再支持（实测只告警并返回 `Inf`）——都不能当负载用；没装 `ps` 就直接保守取档，别为了探测硬装包。
+
+### 9.2 并行单位是折，不是候选
+
+`resample()` / `benchmark()` / `auto_tuner()` 内部都是 `future_map()` 按**一个重抽样迭代**派发任务（`mlr3:::future_map`，默认 `mlr3.exec_chunk_size = 1`，一折一个 future）。`benchmark()` 会把设计表展开成「任务 × 学习器 × 折 × 参数组合」的逐行单元，所以它的并行单位数要乘学习器数。
+
+推论三条：
+
+- 内层 `rsmp("holdout")` 只有 1 折：**没有可分的任务**。开 future 只让每次评估都把 `Task` 序列化进 worker——本书记载的房价案例里，20 个候选从 **41.4 s 变成 10.1 s**（关掉 future 后）。这是"开了并行反而慢 4 倍"的典型。
+- 内层 `rsmp("cv", folds = 5)`：5 折就是 5 个任务，**worker 给 5 个就够**，多给的不会更快。
+- `auto_tuner()` 的候选数**不是**并行单位：`term_evals = 20` 仍然是 20 次串行评估，每次内部按折并行。
+
+### 9.3 三档决策表
+
+| 并行单位数 | future | 学习器线程 | 依据 |
+|---|---|---|---|
+| `n_unit == 1`（holdout / 单次拟合） | **不开**，保持 `sequential` | `set_threads(lrn, n = phys - 1L)` | 没有可分任务；靠学习器内部线程吃满机器 |
+| `n_unit >= 2`（CV / subsampling / repeats） | `plan("multisession", workers = min(n_unit, cores - 1L, 内存档))` | `set_threads(lrn, n = max(1L, phys %/% workers))` | 超过折数的 worker 不更快；workers × 每折线程 ≤ 物理核 |
+| benchmark 多学习器 | 同上，`n_unit` 取**总单元数**（学习器 × 任务 × 折） | 同上 | 每个 future 是一个 (任务, 学习器, 折) 单元 |
+
+内存档：每个 worker 各持一份 task 副本，`floor(mem$avail * 0.5 / as.numeric(object.size(train_task)))`。压到 1 就回单进程满线程档，并在输出里写清原因（例如"内存只剩 2 GB，退回单进程 + 13 线程"）。
+
+```r
+plan_parallel = \(iters, cores = future::availableCores(),
+  phys = parallel::detectCores(logical = FALSE), mem = NULL, task_bytes = 0) {
+  phys = if (is.na(phys)) cores else min(phys, cores)
+  mem_cap = if (!is.null(mem) && task_bytes > 0)
+    max(1L, floor(mem$avail * 0.5 / task_bytes)) else Inf
+  if (iters <= 1L) return(list(workers = 1L, thread = as.integer(max(1L, phys - 1L))))
+  w = as.integer(max(1L, min(iters, cores - 1L, mem_cap)))
+  th = if (w == 1L) max(1L, phys - 1L) else phys %/% w
+  list(workers = w, thread = as.integer(max(1L, th)))
+}
+
+p = plan_parallel(rsmp$iters, mem = ps::ps_system_memory(),   # rsmp 先 instantiate；auto_tuner 用 at$resampling$iters
+                  task_bytes = as.numeric(object.size(train_task)))
+if (p$workers > 1L) {
+  future::plan("multisession", workers = p$workers)
+} else {
+  future::plan("sequential")        # 单进程档：靠 p$thread 吃满机器
+}
+set_threads(learner, n = p$thread)
+# ... resample() / benchmark() / auto_tuner() ...
+future::plan("sequential")     # 跑完复原，别把档位留给后面的代码
+```
+
+Windows 用 `multisession`（`multicore` 在 Windows 不可用）。`set_threads()` 对没有线程参数的学习器（rpart / lm 等）是空操作，同一个规划器可以无脑套在所有学习器上；GraphLearner 会把线程数传到图内每个学习器。
+
+### 9.4 学习器线程默认值：mlr3 与裸库不同
+
+| 学习器 | 线程参数 | mlr3 学习器默认 | 裸库默认 | 处理 |
+|---|---|---|---|---|
+| XGBoost | `nthread` | **1** | `NULL`（全核） | 按 §9.3 定档；裸库"不写就全核"在 mlr3 里不成立 |
+| LightGBM | `num_threads` | **1** | `0`（全核） | 同上 |
+| CatBoost | `thread_count` | **1** | `1`（单线程） | 同上；裸库用时必须显式给，否则白跑 |
+| ranger | `num.threads` | **1** | 全核 | 同上 |
+
+现场探（前两个随 mlr3verse 就位，后两个要 `mlr3extralearners`）：`lrn("classif.xgboost")$param_set$values$nthread`、`lrn("classif.ranger")$param_set$values$num.threads`，以及 `regr.lightgbm` 的 `num_threads`、`regr.catboost` 的 `thread_count`——实测都是 `1`。所以"线程越少越稳"是错的：**正确口径是总线程不超过物理核**。裸库层面显式给小数反而慢（XGBoost −24% / LightGBM −54%），说明压线程本身就是一次性能损失，只在折并行时（用并发进程换线程）才值得。
+
+`set_threads()` 的形参是 `(x, n = availableCores(), ...)`——写成 `set_threads(learner, nthreads = 1)` 不报错，错名被 `...` 吞掉、`n` 落到默认值，线程反而被设成**满核**（20 核机器实测 `num.threads` = 20）。线程参数名不确定就现探 `learner$param_set$ids(tags = "threads")`，映射交给 `set_threads()` 做。
+
+### 9.5 另一个后端：mirai
+
+mlr3 1.8.0 的 `future_map()` 开头会先看 `mirai`：**只要 `mirai` 已加载且 daemons 已设**，就走 mirai，`future::plan()` 完全不生效（`getOption("mlr3.mirai_parallelization", "mlr3_parallelization")` 指定 daemons 名）。所以"我明明 plan 了 5 个 worker 怎么没变快"先查这一条：
+
+```r
+if (isNamespaceLoaded("mirai") && mirai::daemons_set()) {
+  # mlr3 走的是 mirai，不是 future：要么关掉 daemons，要么按 mirai 的档位配
+}
+```
+
+默认路线仍是 future；两条别同时开。
 
 ## 10. 实测坑：bootstrap、报错取消、分层口径、逐折表
 

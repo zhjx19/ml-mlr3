@@ -2,6 +2,24 @@
 
 本仓库遵循「发版讲清为什么改」的迭代纪律：每个版本记录动机，不只是改动清单。
 
+## [Unreleased] — 2026-11-26 · 并行按机器自动定档 + 早停/SHAP 模板
+
+### Added
+- **`references/interpretation.md`：SHAP 解释的四步模板**（模型 → 快速 `pred_fun` → `kernelshap` → `shapviz`）。为什么加：skill 此前只到"评估指标 + 可视化"，没有任何模型解释内容；而 `kernelshap` 在 mlr3 图学习器上有一个不写就**跑不完**的坑——`predict_newdata()` 每次调用重建 Task，实测 40 次调用 **11.7 s**，直调底层 booster **0.13 s**（约 90 倍）。模板给出剥包装的取值路径（图学习器末端模型被包成 `list("wrapper")`，真身在 `attr(m[[1]], "model")`）、`bg_X` 决定 baseline、`m` 必须偶数、可加性校验与六条报错原文。用例 24 用真实训练出的图学习器验证取值路径与可加性（误差 < 1e-6）。
+- **`references/advanced-workflows.md` §5 补"早停日志在哪里"**。为什么加：原 §5 只写到调优代码，读者按 ch12 的写法去 `map_int(internal_tuned_values, "nrounds")` 会落空——图学习器里键名带节点前缀（`classif.xgboost.nrounds`），且最终模型重拟合时 `$internal_tuned_values` 是**空**的，早停曲线只存在 `at$archive$learners()` 的折模型里，挂在 booster 的 `attributes()$evaluation_log`（不是 `xgb.attributes()`）。另记一条构造期陷阱：只调内层轮次时 `auto_tuner()` 报 `To only conduct internal parameter tuning, use tnr('internal')`。调优示例同步补 `store_models = TRUE`（不存模型就取不到日志）。
+
+### Changed
+- **并行按机器配置自动定档**（`SKILL.md` + `references/resampling.md` §9 重写）。为什么改：旧口径把"外层按折并行 → learner 线程必须压成 1"当成通则，但实测 mlr3 的学习器**构造时一律是 1 线程**（`nthread` / `num_threads` / `thread_count` / `num.threads` 现探都是 `1`；底层库"默认全核"在 mlr3 里被覆盖了）。于是旧写法只覆盖了"折多"这一种情形，holdout / 单次拟合时反而默认单核跑完全程。新口径给三档决策表 + 一个可直接抄的 `plan_parallel()`：1 折不并行、靠 `set_threads(n = phys - 1L)` 吃满机器；多折 `workers = min(折数, cores - 1, 内存档)`、`thread = phys %/% workers`；benchmark 的并行单位数要乘学习器/任务数。证据来自 ch12：内层 holdout 开 future 反而慢 4 倍（20 个候选 41.4 s → 10.1 s），worker 超过折数不会更快，裸库显式给小线程值反而慢 24%/54%。另补两条后端事实：`set_threads(learner, nthreads = 1)` 的错名被 `...` 吞掉；mlr3 1.8.0 的 `future_map()` 若发现环境里设了 `mirai` daemons 会绕过 future，`future::plan()` 不生效。
+- **用例 21 → 24**：新增「并行定档·plan_parallel 三档与默认线程」「早停·档案里的内部轮次与折日志」「模型解释·kernelshap 快速 pred_fun 与可加性」。文档里的分档公式、默认线程值、键名前缀、日志位置都是字面量，不钉就会随上游漂移。
+
+### 验证
+- 本机（Windows / R 4.6.2 / mlr3 1.8.0 / mlr3learners 0.16.0）：`Rscript scripts/verify_examples.R` → 版本自洽 **v2.5.0** + **24/24 PASS**，退出码 0（合计 92 s）。
+- `Rscript scripts/check_answer_api.R SKILL.md "references/*.md" ...` → **172 个唯一字典键，幻觉 0**。
+- `node scripts/run_evals.mjs --selftest` → 引擎自检 PASS（黄金 0 FAIL、违规 5/5）。
+- `Rscript scripts/list_example_deps.R` → hard 17 / opt 8（kernelshap、shapviz 新增为可选依赖，被 `requireNamespace()` 守卫），本机缺失 = 无。
+- 实测记录逐条：`availableCores() = 20` / `detectCores(logical = FALSE) = 14` / `ps_system_memory() percent = 56.9`；`rsmp("holdout")$iters = 1`、`rsmp("cv", folds = 5)$iters = 5`；`lrn("classif.xgboost")$param_set$values$nthread = 1`（ranger / lightgbm / catboost 同）；`kernelshap 0.9.1` 的 `m must be even`。
+- 未做的事：未把 SHAP 模板推广到 lightgbm / catboost 的具体取值路径（只写了"换底层模型那一步"）；未给 SHAP 的图做逐图读法表（交给 shapviz 手册）；`evals/outputs/eval-*.md` 与 `examples/replay/*` 保持原样——其中"外层按折并行时线程压 1"的写法在 `workers = 8` 的语境下仍然成立，不是错的，只是不再是唯一档位。
+
 ## [2.5.0] — 2026-10-07 · 发布（可视化小节补齐：mlr3viz 点名 + 场景→图决策表 + 活体实跑）
 
 ### Fixed

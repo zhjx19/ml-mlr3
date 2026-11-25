@@ -77,14 +77,14 @@ baseline 那 3 个 FAIL 只说明它不守规矩，看不出它**根本跑不通
 ## 骨架本身能跑，且全库文档零幻觉键
 
 ```text
-=== 汇总：21/21 PASS ===
+=== 汇总：24/24 PASS ===
 
-=== 汇总：169 个唯一字典键 | 幻觉 0 | 存在 169 ===
+=== 汇总：172 个唯一字典键 | 幻觉 0 | 存在 172 ===
 ```
 
-`Rscript scripts/verify_examples.R` 全量实跑 21 个案例（含分类/回归骨架、`auto_tuner` 条件参数、分支调参、时序滚动折、嵌套 benchmark、早停、字典探针、重抽样实测坑、文档口径对账、mlr3viz 可视化场景矩阵），整套含 R 会话启动，本机多次实测 105–276s（脚本每例自报秒数；波动来自机器负载，用例数与断言一条没变）。
+`Rscript scripts/verify_examples.R` 全量实跑 24 个案例（含分类/回归骨架、`auto_tuner` 条件参数、分支调参、时序滚动折、嵌套 benchmark、早停、字典探针、重抽样实测坑、文档口径对账、mlr3viz 可视化场景矩阵、并行定档、早停档案、SHAP 快速 pred_fun），整套含 R 会话启动，本机多次实测 92–276s（脚本每例自报秒数；波动来自机器负载，用例数与断言一条没变）。
 
-`Rscript scripts/check_answer_api.R SKILL.md "references/*.md" "references/feature-engineering/*.md" "evals/outputs/eval-*.md" "examples/replay/skilled-*.md"` 把 skill 自己教的每一段代码过一遍字典，169 个唯一键全部存在。两条都在 CI（`.github/workflows/gates.yml`，ubuntu + windows 双平台）里跑，不砍案例、不砍折数、不砍预算。
+`Rscript scripts/check_answer_api.R SKILL.md "references/*.md" "references/feature-engineering/*.md" "evals/outputs/eval-*.md" "examples/replay/skilled-*.md"` 把 skill 自己教的每一段代码过一遍字典，172 个唯一键全部存在。两条都在 CI（`.github/workflows/gates.yml`，ubuntu + windows 双平台）里跑，不砍案例、不砍折数、不砍预算。
 
 ## 这套证据的边界（诚实版）
 

@@ -778,6 +778,169 @@ results = c(
     expect_err(autoplot(bmr_v, type = "roc"), if (has_precrec) "multiple tasks" else "precrec")
     expect_err(autoplot(pred_rg, theme = theme_bw()), "could not find function")
     TRUE
+  }),
+
+  ## 并行定档（红线 5）：规划器三档 + mlr3 学习器默认 1 线程 + 并行单位是折
+  ## 为什么单独钉：本轮把"外层并行必须把线程压成 1"改成了"按机器配置自动定档"，
+  ## 分档公式、默认线程值、折数语义都是正文的字面量，任何一条漂移都会让文档教错档位。
+  run_case("并行定档·plan_parallel 三档与默认线程", {
+    plan_parallel = \(iters, cores = future::availableCores(),
+      phys = parallel::detectCores(logical = FALSE), mem = NULL, task_bytes = 0) {
+      phys = if (is.na(phys)) cores else min(phys, cores)
+      mem_cap = if (!is.null(mem) && task_bytes > 0)
+        max(1L, floor(mem$avail * 0.5 / task_bytes)) else Inf
+      if (iters <= 1L) return(list(workers = 1L, thread = as.integer(max(1L, phys - 1L))))
+      w = as.integer(max(1L, min(iters, cores - 1L, mem_cap)))
+      th = if (w == 1L) max(1L, phys - 1L) else phys %/% w
+      list(workers = w, thread = as.integer(max(1L, th)))
+    }
+
+    # 1) 三档：1 折不并行 + 满线程；多折 workers = 折数 + 线程按物理核均分；内存不够回单进程
+    p1 = plan_parallel(1L, cores = 20, phys = 14)
+    stopifnot(identical(p1, list(workers = 1L, thread = 13L)))
+    p5 = plan_parallel(5L, cores = 20, phys = 14)
+    stopifnot(identical(p5, list(workers = 5L, thread = 2L)))          # 5 x 2 = 10 <= 14
+    p_small = plan_parallel(4L, cores = 8, phys = 4)
+    stopifnot(p_small$workers == 4L, p_small$thread == 1L)             # 4 x 1 <= 4
+    p_mem = plan_parallel(5L, cores = 20, phys = 14,
+      mem = list(avail = 1e9), task_bytes = 4e8)                       # 0.5 GB / 0.4 GB -> 1 档
+    stopifnot(p_mem$workers == 1L, p_mem$thread == 13L)                 # 回单进程档：留 1 核
+    p_one = plan_parallel(5L, cores = 1, phys = 1)                     # 单核机器不越界
+    stopifnot(p_one$workers == 1L, p_one$thread == 1L)
+    stopifnot(plan_parallel(5L, cores = 4, phys = NA)$thread == 1L)    # phys 为 NA 时退回 cores
+
+    # 2) 并行单位是折：holdout 恒 1，CV = folds，subsampling = repeats（instantiate 前后一致）
+    stopifnot(rsmp("holdout")$iters == 1L)
+    stopifnot(rsmp("cv", folds = 5L)$iters == 5L)
+    stopifnot(rsmp("subsampling", repeats = 3L)$iters == 3L)
+    t_p = tsk("mtcars")
+    cv_p = rsmp("cv", folds = 4L); cv_p$instantiate(t_p)
+    stopifnot(cv_p$iters == 4L)
+    at_p = auto_tuner(tnr("random_search"), lrn("regr.rpart"), rsmp("cv", folds = 4L),
+      msr("regr.rmse"), term_evals = 2L)
+    stopifnot(at_p$resampling$iters == 4L)                             # 候选数不是并行单位
+
+    # 3) mlr3 学习器构造时默认 1 线程（正文"不开并行就是单核档"的依据）
+    stopifnot(identical(as.integer(lrn("classif.xgboost")$param_set$values$nthread), 1L))
+    stopifnot(identical(as.integer(lrn("regr.xgboost")$param_set$values$nthread), 1L))
+    if (requireNamespace("ranger", quietly = TRUE)) {
+      stopifnot(identical(as.integer(lrn("classif.ranger")$param_set$values$num.threads), 1L))
+    }
+    # 没有线程参数的学习器上 set_threads() 是空操作 —— 同一个规划器可无脑套用
+    l_np = lrn("regr.rpart")
+    stopifnot(length(l_np$param_set$ids(tags = "threads")) == 0L)
+    v_before = l_np$param_set$values
+    set_threads(l_np, n = 3L)
+    stopifnot(identical(l_np$param_set$values, v_before))              # 没凭空多出线程参数
+
+    # 4) plan 的两种档位可切、可复原（mlr3 用 inherits(plan(), "sequential") 判定）
+    old_plan = future::plan()
+    on.exit(future::plan(old_plan), add = TRUE)
+    future::plan("multisession", workers = 2L)
+    stopifnot(!inherits(future::plan(), "sequential"))
+    future::plan("sequential")
+    stopifnot(inherits(future::plan(), "sequential"))
+    TRUE
+  }),
+
+  ## 早停（advanced-workflows.md §5）：内部轮次只在档案的折模型里，最终模型没有
+  ## 为什么钉：正文给的键名（带图节点前缀）、日志位置（attributes() 而非 xgb.attributes()）、
+  ## "最终模型为空"三条都是字面量，任何一条漂移都会让读者取不到数或取错数。
+  run_case("早停·档案里的内部轮次与折日志", {
+    t_es = tsk("german_credit")
+    sp_es = partition(t_es, ratio = 0.7)
+    g_es = ppl("robustify", task = t_es) %>>%
+      lrn("classif.xgboost", predict_type = "prob",
+          max_depth = to_tune(3, 6),
+          nrounds = to_tune(upper = 60, internal = TRUE),
+          early_stopping_rounds = 8, eval_metric = "logloss", nthread = 2L)
+    gl_es = as_learner(g_es)
+    set_validate(gl_es, validate = 0.2)
+    at_es = auto_tuner(tnr("random_search"), gl_es, rsmp("cv", folds = 3L),
+      msr("classif.auc"), term_evals = 2L, store_models = TRUE)
+    set.seed(4817)
+    at_es$train(t_es, row_ids = sp_es$train)
+
+    # 1) 档案里有内部轮次；键名带图节点前缀（不是裸 "nrounds"）
+    stopifnot("internal_tuned_values" %in% names(at_es$archive$data))
+    k_int = names(at_es$archive$data$internal_tuned_values[[1]])
+    stopifnot(length(k_int) == 1L, grepl("nrounds$", k_int))
+
+    # 2) 折模型可取回；每折轮次是 1..upper 的正整数
+    lb_es = at_es$archive$learners(which.max(at_es$archive$data$classif.auc))
+    stopifnot(length(lb_es) == 3L)
+    rounds = sapply(lb_es, \(x) as.integer(unlist(x$internal_tuned_values)))
+    stopifnot(all(rounds >= 1L), all(rounds <= 60L))
+
+    # 3) 早停曲线在折模型 booster 的 attributes() 上（xgb.attributes() 取不到）
+    get_log = \(x) {
+      m = x$model
+      if (inherits(m, "graph_learner_model")) m = m[[length(m)]]$model
+      if (is.list(m) && !inherits(m, "xgb.Booster")) m = attr(m[[1]], "model")
+      attributes(m)$evaluation_log
+    }
+    log_es = get_log(lb_es[[1]])
+    stopifnot(is.data.frame(log_es))
+    stopifnot(all(c("iter", "test_logloss") %in% names(log_es)))
+    stopifnot(nrow(log_es) >= rounds[[1]], !is.unsorted(log_es$iter))
+
+    # 4) 最终模型重拟合时不带内部验证集：internal_tuned_values 为空
+    stopifnot(length(at_es$learner$internal_tuned_values) == 0L)
+    TRUE
+  }),
+
+  ## 模型解释（references/interpretation.md）：快速 pred_fun 与可加性
+  ## 为什么钉：predict_newdata 与直调 booster 差约 90 倍，模板里那段"剥包装"的取值路径
+  ## 一旦上游改了模型包装方式就会失效——本用例用真实训练出的图学习器验证它仍能取到 booster。
+  run_case("模型解释·kernelshap 快速 pred_fun 与可加性", {
+    if (!requireNamespace("kernelshap", quietly = TRUE)) skip("未安装 kernelshap")
+    if (!requireNamespace("shapviz", quietly = TRUE)) skip("未安装 shapviz")
+    stopifnot(is.function(kernelshap::kernelshap))     # 依赖钉：扫描器据此入清单
+    stopifnot(is.function(shapviz::shapviz))
+
+    set.seed(3847)
+    t_sh = tsk("sonar")
+    sp_sh = partition(t_sh, ratio = 0.7)
+    tr_sh = t_sh$clone(deep = TRUE)$filter(sp_sh$train)
+    gl_sh = ppl("robustify") %>>%
+      lrn("classif.xgboost", predict_type = "prob",
+          nrounds = 30L, max_depth = 3L, eta = 0.3, nthread = 1L) |> as_learner()
+    gl_sh$train(tr_sh)
+
+    get_booster = \(object) {
+      m = if (inherits(object$model, "graph_learner_model")) {
+        object$model[[length(object$model)]]$model
+      } else {
+        object$model
+      }
+      if (is.list(m) && !inherits(m, "xgb.Booster")) m = attr(m[[1]], "model")
+      m
+    }
+    stopifnot(inherits(get_booster(gl_sh), "xgb.Booster"))
+    pred_fast = \(object, X, ...) {
+      predict(get_booster(object), newdata = data.matrix(X)) |> as.numeric()
+    }
+
+    ids_sh = tr_sh$row_ids
+    X_ex = tr_sh$data(rows = ids_sh[1:2], cols = tr_sh$feature_names)
+    bg = tr_sh$data(rows = ids_sh[3:10], cols = tr_sh$feature_names)
+
+    # 快速路径与公开 API 数值一致（快的是实现，不是口径）
+    p_fast = pred_fast(gl_sh, X_ex)
+    p_api = gl_sh$predict_newdata(X_ex)$prob[, "M"]
+    stopifnot(max(abs(p_fast - p_api)) < 1e-6)
+
+    ps = kernelshap::kernelshap(gl_sh, X = X_ex, bg_X = bg,
+      feature_names = tr_sh$feature_names, pred_fun = pred_fast,
+      parallel = FALSE, m = 16, seed = 3847)
+    add = max(abs(rowSums(ps$S) + ps$baseline - as.numeric(ps$predictions)))
+    stopifnot(add < 1e-6)                                       # 可加性校验
+    stopifnot(identical(dim(ps$S), c(2L, length(tr_sh$feature_names))))
+
+    sv = shapviz::shapviz(ps)
+    stopifnot(inherits(sv, "shapviz"))
+    stopifnot(inherits(shapviz::sv_importance(sv, kind = "bar", max_display = 5), "ggplot"))
+    TRUE
   })
 )
 

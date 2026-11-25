@@ -2,13 +2,15 @@
 name: ml-mlr3
 description: >-
   Discipline-hardened mlr3verse (R) machine learning for tabular data: build a
-  predictive model, benchmark learners, tune hyperparameters, and do in-graph
-  feature engineering, while the test set stays untouched until authorized,
-  every preprocessing step sits inside the resampling, and parallelism is sized
-  from measured cores/memory. Use when the user needs mlr3 / mlr3verse /
-  GraphLearner / PipeOp / auto_tuner / auto_fselector / ppl("robustify") work.
+  predictive model, benchmark learners, tune hyperparameters, do in-graph
+  feature engineering, wire early stopping into tuning, and explain the model
+  with SHAP, while the test set stays untouched until authorized, every
+  preprocessing step sits inside the resampling, and parallelism is tiered from
+  measured cores/memory. Use when the user needs mlr3 / mlr3verse /
+  GraphLearner / PipeOp / auto_tuner / auto_fselector / ppl("robustify") /
+  early stopping / kernelshap / shapviz work.
   用户需要用 R mlr3verse 框架做表格数据机器学习建模——构建预测模型、比较算法、
-  调优超参数、做特征工程或特征选择，或提到上述关键词时使用。
+  调优超参数、做特征工程或特征选择、接早停、做 SHAP 解释，或提到上述关键词时使用。
   不要用于：深度学习、非表格数据（图像/文本/NLP）；tidymodels 工作流（改用 tidymodels 生态技能）；
   轻量探索性分组建模（dplyr nest + map 即可）；数据清洗本身。
 license: Apache-2.0
@@ -26,9 +28,9 @@ version: 2.5.0
 
 ## API 现场校验（不背版本号）
 
-mlr3 生态迭代快，本技能不维护版本对照表：**版本号全文只出现在下面这一行实测记录里**，它回答"这些示例最近何时、在什么环境跑通"，不回答"哪个 API 从哪个版本起存在"。规则只有一条：**照抄任何对象名/参数名之前，先当场探测它是否存在**。示例的可执行契约由 `scripts/verify_examples.R`（21 例实跑）和 `scripts/run_evals.mjs`（静态断言）把守——改完示例代码这两个都必须重跑，跑通后刷新这行记录。
+mlr3 生态迭代快，本技能不维护版本对照表：**版本号全文只出现在下面这一行实测记录里**，它回答"这些示例最近何时、在什么环境跑通"，不回答"哪个 API 从哪个版本起存在"。规则只有一条：**照抄任何对象名/参数名之前，先当场探测它是否存在**。示例的可执行契约由 `scripts/verify_examples.R`（24 例实跑）和 `scripts/run_evals.mjs`（静态断言）把守——改完示例代码这两个都必须重跑，跑通后刷新这行记录。
 
-> 实测记录：2026-10-07 · R 4.6.1 / mlr3 1.8.0 / mlr3pipelines 0.12.0 / mlr3tuning 1.7.0 / mlr3fselect 1.7.0 / paradox 1.0.1 / mlr3viz 0.11.2 · `verify_examples.R` 21/21 PASS
+> 实测记录：2026-11-26 · R 4.6.2 / mlr3 1.8.0 / mlr3pipelines 0.12.0 / mlr3tuning 1.7.0 / mlr3fselect 1.7.0 / paradox 1.0.1 / mlr3viz 0.11.2 / mlr3learners 0.16.0 · `verify_examples.R` 24/24 PASS
 
 ```r
 mlr_learners$keys(); mlr_pipeops$keys(); mlr_measures$keys()
@@ -147,19 +149,56 @@ rr_nested = resample(train_task, at, rsmp("cv", folds = 3))
 rr_nested$aggregate(msr("classif.auc"))  # 无偏估计调参后泛化误差
 ```
 
-### 红线 5：并行自动启用，但必须先量可用资源
+### 红线 5：并行按机器配置自动定档（粒度是折，不是候选）
 
-不必征求授权即可开并行；**风险不是"擅自并行"，而是"凭空假设机器空闲"**。`future::availableCores()` 只报 CPU 额度上限、不报真实负载——本机实测恒为 20，同期内存已用 73%，说明机器并不空。所以开并行前两个数都要看：
+并行不必征求授权；要防两个坑——**凭空假设机器空闲**，以及它的反面：**mlr3 的学习器构造时一律是 1 线程**（`classif.xgboost` 的 `nthread`、`regr.lightgbm` 的 `num_threads`、`regr.catboost` 的 `thread_count`、`ranger` 的 `num.threads` 实测值都是 `1`；底层库"默认全核"的说法在 mlr3 里被覆盖了）。不探测、不定档，跑的就是单核档。
+
+先量三个数，再按**并行单位数**分档：
 
 ```r
-future::availableCores()    # CPU 额度（上限，非当前空闲）
-ps::ps_system_memory()      # total / avail / percent：真实内存负载
-future::plan("multisession", workers = n_workers)  # Windows 用 multisession
+cores = future::availableCores()                  # 额度上限，不是当前空闲
+phys  = parallel::detectCores(logical = FALSE)    # 物理核（NA 时退回 cores）
+mem   = ps::ps_system_memory()                    # total / avail / percent：真实内存负载
+rsmp$instantiate(train_task); n_unit = rsmp$iters  # 并行单位 = 折数；benchmark 再乘学习器/任务数
 ```
 
-`n_workers` 取 `min(availableCores() - 1L, 内存装得下的折数)`；`percent` 已高、或用户在同一机器上同时干别的事，就主动下调，宁可退回单线程并说明原因。跑完 `future::plan("sequential")` 复原。（没装 `ps` 就别探测、按保守档取；`future` **没有** `availableMemory()`，`memory.limit()` 已不再支持——实测只告警并返回 `Inf`——两者都不能当负载信号。）
+| 并行单位数 | future | 学习器线程 | 依据 |
+|---|---|---|---|
+| `n_unit == 1`（holdout / 单次拟合） | **不开**，保持 `sequential` | `set_threads(lrn, n = phys - 1L)` | 1 折没有可分的任务，开 future 只把 Task 反复序列化进 worker——书中房价案例 20 个候选 41.4 s → 10.1 s（关掉快 4 倍） |
+| `n_unit >= 2`（CV / subsampling / repeats） | `plan("multisession", workers = min(n_unit, cores - 1L, 内存档))` | `set_threads(lrn, n = max(1L, phys %/% workers))` | worker 超过折数不会更快；workers × 每折线程 ≤ 物理核，超了互相争抢 |
+| benchmark 多学习器 | 同上，`n_unit` 取**总单元数**（学习器 × 任务 × 折） | 同上 | `benchmark()` 的每个 future 是一个 (任务, 学习器, 折) 单元 |
 
-一条实测纪律：并行粒度是**重抽样迭代（折）**，所以外层一开并行，learner 内部线程必须压成 1——`set_threads(learner, n = 1L)`（单个 learner 或列表都行；线程参数名现探 `learner$param_set$ids(tags = "threads")`）。**写成 `set_threads(learner, nthreads = 1)` 是静默反向的**：形参只有 `(x, n, ...)`，错名被 `...` 吞掉、`n` 落到默认值 `availableCores()`，线程反而拉满。
+内存档：每个 worker 各持一份 task 副本，`floor(mem$avail * 0.5 / as.numeric(object.size(train_task)))`；`percent` 已高就再往下压，压到 1 就回单进程满线程档，并在输出里写清原因。
+
+直接抄这个规划器，把选中的档写进结果（`workers` / `thread` 两个数就是依据）：
+
+```r
+plan_parallel = \(iters, cores = future::availableCores(),
+  phys = parallel::detectCores(logical = FALSE), mem = NULL, task_bytes = 0) {
+  phys = if (is.na(phys)) cores else min(phys, cores)
+  mem_cap = if (!is.null(mem) && task_bytes > 0)
+    max(1L, floor(mem$avail * 0.5 / task_bytes)) else Inf
+  if (iters <= 1L) return(list(workers = 1L, thread = as.integer(max(1L, phys - 1L))))
+  w = as.integer(max(1L, min(iters, cores - 1L, mem_cap)))
+  th = if (w == 1L) max(1L, phys - 1L) else phys %/% w
+  list(workers = w, thread = as.integer(max(1L, th)))
+}
+
+p = plan_parallel(rsmp$iters, mem = ps::ps_system_memory(),   # rsmp 先 instantiate；auto_tuner 用 at$resampling$iters
+                  task_bytes = as.numeric(object.size(train_task)))
+if (p$workers > 1L) {
+  future::plan("multisession", workers = p$workers)
+} else {
+  future::plan("sequential")        # 单进程档：靠 p$thread 吃满机器
+}
+set_threads(learner, n = p$thread)
+# ... resample() / benchmark() / auto_tuner() ...
+future::plan("sequential")     # 跑完复原，别把档位留给后面的代码
+```
+
+三个线程/后端坑（实测）：① `set_threads()` 形参是 `(x, n, ...)`，写成 `set_threads(learner, nthreads = 1)` 不报错——错名被 `...` 吞掉、`n` 落回默认 `availableCores()`，线程反而拉满；② 别为了"稳"乱压线程：裸库层面 xgboost / lightgbm 默认就是全核，显式给小值实测慢 24% / 54%，正确口径是"总线程不超过物理核"，不是"越少越稳"；③ 环境里若已设 `mirai` daemons，mlr3 会**绕过 future** 直接走 mirai（`getOption("mlr3.mirai_parallelization")`），此时 `future::plan()` 不生效——先确认走哪条道，别两套都开着。
+
+（没装 `ps` 就别探测、按保守档取；`future` **没有** `availableMemory()`，`memory.limit()` 已不再支持——实测只告警并返回 `Inf`——两者都不能当负载信号。并行粒度是**折**：候选数再多也不会并行，`auto_tuner()` 的候选是一个个串行评估的。）
 
 ## 默认工作流
 
@@ -168,7 +207,7 @@ future::plan("multisession", workers = n_workers)  # Windows 用 multisession
 3. 一次性划分训练/测试集，冻结 `split`；开发期只用 `split$train`
 4. 选择指标和重抽样方案
 5. 把所有预处理写入 PipeOp / GraphLearner（默认起点：`ppl("robustify")`）
-6. 用 `resample()` / `benchmark()` / `auto_tuner()` / `auto_fselector()` 在训练集内开发
+6. 用 `resample()` / `benchmark()` / `auto_tuner()` / `auto_fselector()` 在训练集内开发（跑之前先按红线 5 的 `plan_parallel()` 定档，把 workers / thread 写进结果）
 7. 如需调参流程的无偏性能，使用嵌套重抽样
 8. 用户选定最终模型后，在全训练集拟合
 9. 询问用户是否允许评估测试集；获许可后仅评估一次
@@ -220,7 +259,7 @@ rr$aggregate(measures)
 
 ## ppl("robustify") 默认预处理管线
 
-**依赖包提示（防"运行即报错"）**：示例用到的模型/算子对应 R 包——`classif.glmnet`→`glmnet`、`classif.ranger`→`ranger`、`classif.kknn`→`kknn`、`classif.xgboost`→`xgboost`（注意是 `xgboost` 本身，学习器由 mlr3verse 附带的 `mlr3learners` 提供，`mlr3xgboost` 是另一套带预置调参空间的实现，装了会覆盖同名键）、`classif.svm`→`e1071`（mlr3verse 默认附带，但其 `cost`/`gamma` 是条件参数，见「调优：auto_tuner」陷阱说明）、`po("smote")`→`smotefamily`、`yeojohnson`/`boxcox` 分支→`bestNormalize`、可视化 `autoplot()`→`mlr3viz`（**mlr3verse 的硬依赖，随装随有、不必单装**；要单装的是它在 **Suggests** 里的后端：ROC/PRC→`precrec`、`pairs`/`duo`→`GGally`、学习器结构图→`ggfortify`/`ggparty`、benchmark `type="ci"`→`mlr3inferr`，`packageDescription("mlr3viz")$Suggests` 现场可查；另外 mlr3verse 不 attach ggplot2，自加图层要 `library(ggplot2)` 或 `ggplot2::` 前缀）、`tnr("mbo")`→`mlr3mbo`（mlr3verse 已附带）、并行探测用的 `future::availableCores()`→`future` 与 `ps::ps_system_memory()`→`ps`（**这两个都不在 mlr3verse 的硬依赖里**，`packageDescription("mlr3verse")$Imports` 现场可查；装了 mlr3verse 再写 `future::` 就是运行即报错 `there is no package called 'future'`）。运行前先确认已安装（缺则 `install.packages(...)`）；未安装的模型/分支改用可用替代（如未装 bestNormalize 就去掉 yeojohnson 分支）。想核对某个键到底要哪个包：`mlr_learners$get("classif.xgboost")$packages`。还有一类不是"少装一个后端包"而是"整个提供方不在 CRAN"：`classif.lightgbm` / `regr.lightgbm` / `classif.catboost` 等由 `mlr3extralearners` 注册，该包不在 CRAN，官方通道是 mlr-org 的 r-universe（`install.packages("mlr3extralearners", repos = c(getOption("repos"), mlorg = "https://mlr-org.r-universe.dev"))`）；没装它时这些键根本不在 `mlr_learners$keys()` 里，写进文档的候选学习器清单前要先探测。最后一种失败形态最容易误判：报 `unable to load shared object '…/xxx.so'` 时，那个包**磁盘上已有**，`install.packages` 因此直接跳过（重装无效），而缺的是**它依赖的系统库**、不是 R 包——先 `loadNamespace("包名")` 把被 `requireNamespace(quietly = TRUE)` 咽掉的原文捞出来，看清是哪个包加载不了、缺哪个库，补齐再试。
+**依赖包提示（防"运行即报错"）**：示例用到的模型/算子对应 R 包——`classif.glmnet`→`glmnet`、`classif.ranger`→`ranger`、`classif.kknn`→`kknn`、`classif.xgboost`→`xgboost`（注意是 `xgboost` 本身，学习器由 mlr3verse 附带的 `mlr3learners` 提供，`mlr3xgboost` 是另一套带预置调参空间的实现，装了会覆盖同名键）、`classif.svm`→`e1071`（mlr3verse 默认附带，但其 `cost`/`gamma` 是条件参数，见「调优：auto_tuner」陷阱说明）、`po("smote")`→`smotefamily`、`yeojohnson`/`boxcox` 分支→`bestNormalize`、可视化 `autoplot()`→`mlr3viz`（**mlr3verse 的硬依赖，随装随有、不必单装**；要单装的是它在 **Suggests** 里的后端：ROC/PRC→`precrec`、`pairs`/`duo`→`GGally`、学习器结构图→`ggfortify`/`ggparty`、benchmark `type="ci"`→`mlr3inferr`，`packageDescription("mlr3viz")$Suggests` 现场可查；另外 mlr3verse 不 attach ggplot2，自加图层要 `library(ggplot2)` 或 `ggplot2::` 前缀）、`tnr("mbo")`→`mlr3mbo`（mlr3verse 已附带）、并行探测用的 `future::availableCores()`→`future` 与 `ps::ps_system_memory()`→`ps`（**这两个都不在 mlr3verse 的硬依赖里**，`packageDescription("mlr3verse")$Imports` 现场可查；装了 mlr3verse 再写 `future::` 就是运行即报错 `there is no package called 'future'`）、模型解释用的 `kernelshap` 与 `shapviz`（同样不在 mlr3verse 依赖里，没装就先别把 SHAP 写进方案，见 `references/interpretation.md`）。运行前先确认已安装（缺则 `install.packages(...)`）；未安装的模型/分支改用可用替代（如未装 bestNormalize 就去掉 yeojohnson 分支）。想核对某个键到底要哪个包：`mlr_learners$get("classif.xgboost")$packages`。还有一类不是"少装一个后端包"而是"整个提供方不在 CRAN"：`classif.lightgbm` / `regr.lightgbm` / `classif.catboost` 等由 `mlr3extralearners` 注册，该包不在 CRAN，官方通道是 mlr-org 的 r-universe（`install.packages("mlr3extralearners", repos = c(getOption("repos"), mlorg = "https://mlr-org.r-universe.dev"))`）；没装它时这些键根本不在 `mlr_learners$keys()` 里，写进文档的候选学习器清单前要先探测。最后一种失败形态最容易误判：报 `unable to load shared object '…/xxx.so'` 时，那个包**磁盘上已有**，`install.packages` 因此直接跳过（重装无效），而缺的是**它依赖的系统库**、不是 R 包——先 `loadNamespace("包名")` 把被 `requireNamespace(quietly = TRUE)` 咽掉的原文捞出来，看清是哪个包加载不了、缺哪个库，补齐再试。
 
 一键稳健预处理的 `ppl("robustify")` 展开是**含 14 个 PipeOp 的非线性 DAG**（不是线性串联），一次做掉：删常数 → 字符/有序因子转分类、日期转数值 → 数值列直方图采样插补 + 逻辑列经验分布插补 + 缺失指示器（这三路在 `featureunion_robustify` 处并行分叉再合并）→ 分类新水平视作缺失 → 修复因子水平 → 折叠稀有水平 → 独热编码 → 再删新增常数。节点名单与连边**现场探测**，别背：
 
@@ -288,6 +327,14 @@ autoplot(pred, type = "residual")
 报告里写清 ROC 用的是哪个口径：`autoplot(rr, type = "roc")`（折间合并）与 `autoplot(rr$prediction(), type = "roc")`（合并预测对象）**不是一回事**，也都不等于 `rr$aggregate(msr("classif.auc"))` 的逐折均值。
 
 前置条件：`roc`/`prc` 需 `predict_type = "prob"` + `precrec`；`confidence` 需 `predict_type = "se"`；`rr` 的 `prediction` 图需 `store_models = TRUE` 且分类任务恰好 2 特征；`bmr` 的 `roc`/`prc` 需单任务单重抽样。完整场景表、各图读法、报错原文对照见 `references/evaluation.md` §4–§6。
+
+### 模型解释：SHAP（kernelshap + shapviz）
+
+数值评估之外要做模型解释时，照 `references/interpretation.md` 的四步模板（模型 → 快速 `pred_fun` → `kernelshap` → `shapviz`）。三条必须记住：
+
+- **别用 `predict_newdata()` 喂 `kernelshap`**：它每次调用都重建 Task，实测 40 次调用 11.7 s，直调底层 booster 0.13 s（约 90 倍）。图学习器的末端模型可能被包成 `list("wrapper")`，真身在 `attr(m[[1]], "model")`。
+- **`bg_X` 决定 baseline**：SHAP 永远"相对于某个人群"，报告里要写清参照人群；`m` 取偶数（书里用 200 收敛，默认 `5p` 时约 1/4 观测不收敛），收敛判据是可加性校验 `max(abs(rowSums(S) + baseline - predictions))`。
+- **并行走 future**：`kernelshap` 内部用 `%dofuture%`，`registerDoParallel()` 无效；档位按红线 5，跑完复原。解释测试集个案属于红线 1，先获授权。
 
 ## PipeOp / GraphLearner 特征工程
 
@@ -437,6 +484,7 @@ skill.md 保持精简；遇到以下具体需求时，读取对应知识文件�
 | 缺失值插补 | `references/feature-engineering/missing-data.md` |
 | 相关性削减 | `references/feature-engineering/correlation.md` |
 | 模型评估指标与可视化 | `references/evaluation.md` |
+| 模型解释 / SHAP 模板（kernelshap + shapviz、快速 pred_fun、可加性校验） | `references/interpretation.md` |
 | 超参数调优 | `references/tuning.md` |
 | 进阶工作流（调参器benchmark、图学习器调参/分支选择、不平衡+调优、特征选择+调优联合、早停+混合调优） | `references/advanced-workflows.md` |
 
@@ -449,6 +497,11 @@ skill.md 保持精简；遇到以下具体需求时，读取对应知识文件�
 | PipeOp 用 `|>` 串联 | `%>>%` |
 | 手写嵌套 CV | `auto_tuner()` + 外层 `resample()` |
 | 假设机器空闲就开满并行 | 先探测 `availableCores()` + `ps_system_memory()` 再定 workers |
+| 以为不写线程参数就在用满核 | mlr3 学习器默认全是 1 线程：单折 `set_threads(n = phys - 1L)`，多折按折数分配 |
+| holdout 也开 future 并行 | 1 折没有并行粒度，`plan("sequential")` 反而快 4 倍 |
+| 用 `predict_newdata()` 喂 `kernelshap` | 直接调底层 booster 的 `predict`（实测快约 90 倍） |
+| 把 SHAP 当因果 / 不写参照人群 | 解释模型而非因果；写明 `bg_X` 是谁 |
+| 去最终模型里找早停曲线 | 从 `at$archive$learners()` 取折模型（§5） |
 | 开发期评估测试集 | 完全定型后经用户授权 |
 | 用 123、42 等常见种子 | 用 3847、7291 等随机值 |
 
@@ -460,10 +513,12 @@ skill.md 保持精简；遇到以下具体需求时，读取对应知识文件�
 - [ ] 图管道是否使用 `%>>%`，末端是否 `as_learner()`？
 - [ ] 调参/特征选择是否使用 `auto_tuner()` / `auto_fselector()`？
 - [ ] 若要报告调参流程泛化性能，是否使用嵌套重抽样？
-- [ ] 并行前是否先探测可用资源（核心数 + 内存负载）并按负载定 workers、外层并行时把 learner 内部线程压成 1？
+- [ ] 并行是否按机器配置定档：先探 `availableCores()` / 物理核 / `ps_system_memory()`，单折不并行、多折 `workers = 折数`、`workers × 线程 ≤ 物理核`？
 - [ ] 种子是否避开了 1、42、123 等常见值？
 - [ ] 嵌套重抽样是否仅用于无偏比较，超参数调优是否用 `$train(task)`？
 - [ ] 对复杂 GraphLearner 是否利用了 `ppl("branch")` 分支路由调参？
 - [ ] 不平衡处理（SMOTE 等）是否封装在图中并用 `auto_tuner` 确保每折独立采样？
 - [ ] 代码是否遵守全局 R 编码铁律（`=`、`|>`/`%>>%`、`\(x)`、`.by`）？
-- [ ] 示例代码改动后运行 `scripts/verify_examples.R`，21 个案例全 PASS？
+- [ ] 模型解释是否用了快速 `pred_fun`、做了可加性校验、写明 `bg_X` 与"解释模型非因果"？
+- [ ] 早停的每折轮数 / 曲线是否从 `at$archive$learners()` 取，而不是去最终模型里找？
+- [ ] 示例代码改动后运行 `scripts/verify_examples.R`，24 个案例全 PASS？

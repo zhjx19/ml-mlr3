@@ -7,8 +7,8 @@
 [![version](https://img.shields.io/github/v/tag/zhjx19/ml-mlr3?label=version)](CHANGELOG.md)
 [![Agent Skills](https://img.shields.io/badge/Agent%20Skills-ml--mlr3-blueviolet)](SKILL.md)
 [![gates](https://github.com/zhjx19/ml-mlr3/actions/workflows/gates.yml/badge.svg)](https://github.com/zhjx19/ml-mlr3/actions/workflows/gates.yml)
-[![Live Verify](https://img.shields.io/badge/verify_examples.R-21%2F21%20PASS-brightgreen)](#verification--testing)
-[![Hallucination audit](https://img.shields.io/badge/documented_examples-169%20keys%2C%200%20hallucinated-brightgreen)](examples/EXAMPLE.md)
+[![Live Verify](https://img.shields.io/badge/verify_examples.R-24%2F24%20PASS-brightgreen)](#verification--testing)
+[![Hallucination audit](https://img.shields.io/badge/documented_examples-172%20keys%2C%200%20hallucinated-brightgreen)](examples/EXAMPLE.md)
 [![Evals](https://img.shields.io/badge/evals-6%20prompts%20%2B%20assertions-orange)](#verification--testing)
 [![GitHub](https://img.shields.io/badge/GitHub-zhjx19%2Fml--mlr3-black)](https://github.com/zhjx19/ml-mlr3)
 [![skills.sh](https://skills.sh/b/zhjx19/ml-mlr3)](https://skills.sh/zhjx19/ml-mlr3)
@@ -33,7 +33,8 @@ This skill is not an API manual — it encodes that discipline as hard rules the
 ## What it delivers
 
 - A complete, runnable R workflow: `partition()` split → PipeOp feature engineering → `benchmark()` to compare learners → `auto_tuner()` tuning → nested resampling for unbiased evaluation → a one-shot test-set evaluation after authorization.
-- Two **minimal skeletons** (classification / regression), verified live; complex needs are routed to 10 reference files.
+- Two **minimal skeletons** (classification / regression), verified live; complex needs are routed to 11 reference files.
+- **Templates** for early-stopping hybrid tuning and SHAP interpretation, with three measured traps: the model wrapper inside graph learners, where early-stopping logs actually live, and a `pred_fun` that is ~90× faster.
 - Active interception of violating requests: hitting the test set directly, preprocessing outside the graph, maxing out parallelism without checking the machine.
 
 ## Quick start
@@ -71,6 +72,8 @@ split the data, compare a few algorithms, then evaluate.
 - "How do I do nested resampling?"
 - "How do I build a GraphLearner / PipeOp / graph learner?"
 - "Do feature selection and tuning together"
+- "How do I wire early stopping into tuning / why does the final model have no early-stopping curve?"
+- "How do I do SHAP interpretation for an mlr3 model?"
 
 ## Safety boundaries
 
@@ -79,7 +82,7 @@ split the data, compare a few algorithms, then evaluate.
 | Test set stays sealed | During development, no predict / summary / plot / tuning on `split$test`; final evaluation **must ask the user first** and is run once after permission |
 | R6 reference semantics | Deep-copy with `$clone(deep = TRUE)` before modifying a Task/Learner; never pollute the original |
 | No data leakage | All preprocessing (imputation / encoding / scaling / PCA / SMOTE / feature selection) goes inside a PipeOp graph, fitted within resampling |
-| Measure before parallelizing | Parallelism is on by default, but before `future::plan()` you must probe `availableCores()` + `ps_system_memory()` and size workers to the real load; when parallelizing over folds, `set_threads(learner, n = 1L)` |
+| Size parallelism to the machine | Probes `availableCores()` / physical cores / `ps_system_memory()`, then tiers by resampling folds: one fold → no `future`, use `set_threads()` to use the machine; many folds → `workers = folds`, threads split across physical cores; restore when done |
 | Nested resampling purpose | Unbiased comparison only; real tuning goes through `auto_tuner$train()` |
 
 It will not do: deep learning, non-tabular data, tidymodels workflows (it points you to that ecosystem instead), or lightweight exploratory grouped modeling (one `dplyr` `nest` + `map` is enough — no mlr3 needed).
@@ -107,9 +110,10 @@ ml-mlr3/
 │   ├── feature-engineering.md + feature-engineering/  # PipeOp preprocessing overview + 4 deep dives
 │   ├── tuning.md              # auto_tuner / auto_fselector
 │   ├── evaluation.md          # metrics, visualization (mlr3viz scenario→plot table), benchmark, final evaluation
+│   ├── interpretation.md      # model interpretation: 4-step SHAP template, ~90× faster pred_fun, additivity check
 │   └── advanced-workflows.md  # 5 advanced workflows (tuning benchmark / graph tuning / imbalance / joint tuning / early stopping)
 ├── scripts/
-│   ├── verify_examples.R      # skeleton regression: 21 cases run live (with dictionary probes)
+│   ├── verify_examples.R      # skeleton regression: 24 cases run live (with dictionary probes)
 │   ├── list_example_deps.R    # derive required R packages from the examples (CI no longer hand-copies the list)
 │   ├── check_answer_api.R     # hallucinated-key audit: flag lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl() keys not in the dictionary
 │   └── run_evals.mjs          # evals assertion scorer (zero-dependency Node)
@@ -153,8 +157,11 @@ Most recent real run:
 [PASS] doc wording · spatialsign ownership / deps / validate='test' silence
 [PASS] doc wording · robustify graph accessors / param ids / default overrides
 [PASS] visualization · mlr3viz scenario matrix & preconditions
+[PASS] parallel tiering · plan_parallel's three tiers & default threads
+[PASS] early stopping · internal rounds & fold logs from the archive
+[PASS] interpretation · kernelshap fast pred_fun & additivity
 
-=== summary: 21/21 PASS ===
+=== summary: 24/24 PASS ===
 ```
 
 **Install dependencies**: the R packages the examples need are derived from the examples themselves, not hand-copied:
@@ -166,7 +173,7 @@ Rscript scripts/list_example_deps.R --install             # install the missing 
 Rscript scripts/list_example_deps.R --mirror --repos <your CRAN mirror>   # preflight: does your mirror have it?
 ```
 
-`.github/workflows/gates.yml` runs the same three gates per push / PR: all 21 cases (**ubuntu + windows**; no trimming cases / folds / budget) + a hallucinated-key audit over every documented example + the assertion-engine selftest; on failure the red light carries its own diagnosis (`FAIL:` / `[hallucinated]` lines and install receipts become annotations).
+`.github/workflows/gates.yml` runs the same three gates per push / PR: all 24 cases (**ubuntu + windows**; no trimming cases / folds / budget) + a hallucinated-key audit over every documented example + the assertion-engine selftest; on failure the red light carries its own diagnosis (`FAIL:` / `[hallucinated]` lines and install receipts become annotations).
 
 **Evals** (the 6 prompts in evals.json cover the standard flow / red-line interception / time series / imbalance / regression / nested-resampling trap): store answers in `evals/outputs/eval-<id>.md`, then:
 
@@ -186,7 +193,7 @@ node scripts/run_evals.mjs              # score every assertion; any FAIL exits 
 Rscript scripts/check_answer_api.R examples/replay/skilled-eval-1.md examples/replay/baseline-eval-1.md
 ```
 
-It probes every first argument of `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` in an answer against the mlr3verse dictionaries, names non-existent keys and appends the dictionary's own "Did you mean" hint, and exits 1. Locally: all 4+4 hallucinated keys in the `baseline-*` pair were caught; feeding `SKILL.md` + all `references/` + the 6 A-group answers + `examples/replay/skilled-*` gives **169 unique keys, 0 hallucinated** (this number changes as the prose changes — trust a fresh run).
+It probes every first argument of `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` in an answer against the mlr3verse dictionaries, names non-existent keys and appends the dictionary's own "Did you mean" hint, and exits 1. Locally: all 4+4 hallucinated keys in the `baseline-*` pair were caught; feeding `SKILL.md` + all `references/` + the 6 A-group answers + `examples/replay/skilled-*` gives **172 unique keys, 0 hallucinated** (this number changes as the prose changes — trust a fresh run).
 
 ## Version & changelog
 

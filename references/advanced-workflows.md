@@ -239,7 +239,8 @@ at = auto_tuner(
   learner = glrn,
   resampling = rsmp("cv", folds = 5),
   measure = msr("classif.auc"),
-  term_evals = 20)
+  term_evals = 20,
+  store_models = TRUE)          # 早停日志藏在折模型里，不存就取不到
 
 set.seed(4817)
 at$train(task, row_ids = split$train)
@@ -252,5 +253,37 @@ at$tuning_result   # 含 internal_tuned_values 列出每轮早停选出的 nroun
 - `early_stopping_rounds = 30`：连续 30 轮无改善则停止
 - `eval_metric = "logloss"`：内层用连续概率指标（比离散 error 更早捕捉过拟合趋势）
 - `set_validate(glrn, validate = 0.2)`：用 20% 训练数据作内部验证集——只能这样设置，learner 构造参数中已无 `validate`
+- 只调内层轮次、没有普通超参时不要用 `auto_tuner()`：实测报 `To only conduct internal parameter tuning, use tnr('internal')`，改用 `tnr("internal")`
+
+### 早停日志在哪里：档案里的折模型
+
+- 最终模型为了不浪费数据，重拟合时不再划内部验证集——`at$learner$internal_tuned_values` 是**空的**，`at$learner` 没有早停曲线
+- 调优时每一折都是带早停训练的：`store_models = TRUE` 把折模型存进档案，`at$archive$learners(i)` 取回
+
+```r
+i_best = which.max(at$archive$data$classif.auc)
+lb = at$archive$learners(i_best)     # 最优配置的 K 个折模型
+length(lb)
+
+# 每折各自停在第几轮：键名**带图节点前缀**（如 classif.xgboost.nrounds），
+# 照"nrounds"去取会落空——图学习器一律用 unlist()
+rounds = sapply(lb, \(x) as.integer(unlist(x$internal_tuned_values)))
+rounds
+
+# 每折的早停曲线：xgb.Booster 的 evaluation_log 挂在 attributes() 上，不是 xgb.attributes()
+get_log = \(x) {
+  m = x$model
+  if (inherits(m, "graph_learner_model")) m = m[[length(m)]]$model    # 图学习器：末节点是学习器
+  if (is.list(m) && !inherits(m, "xgb.Booster")) m = attr(m[[1]], "model")  # 包装层
+  attributes(m)$evaluation_log
+}
+valid_log = data.table::rbindlist(lapply(seq_along(lb), \(i) {
+  data.table::as.data.table(get_log(lb[[i]]))[, fold := i]
+}))
+valid_log      # 列：iter / test_logloss / fold，可直接画折间早停曲线
+```
+
+**两个口径别混**：各折的早停点通常不一样，`at$tuning_result` 里的 `nrounds` 是这些折的**平均**；`AutoTuner` 再用这个均值在全训练集上重拟合。所以"最终模型的轮数"本就不等于"某一折的早停点"，报表里要把这句话写清。
+
 
 **`validate = "test"` 不用**：`set_validate(lrn, validate = "test")` 让早停直接拿**外层测试集**当验证集。它不会报错——实测在 5 折 CV 里把 `classif.auc` 从 0.7504 抬到 0.7924（`errors` 表 0 行，全程"健康"），静默把泛化估计做成乐观偏差。要提升数据利用率就调小验证比例（如 `validate = 0.1`）或改用嵌套重抽样报告无偏性能，别碰测试集（红线 1）。
