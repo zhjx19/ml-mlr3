@@ -2,7 +2,7 @@
 
 本仓库遵循「发版讲清为什么改」的迭代纪律：每个版本记录动机，不只是改动清单。
 
-## [Unreleased] — 2026-11-26 · 并行按机器自动定档 + 早停/SHAP 模板
+## [2.6.0] — 2026-11-26 · 发布（并行按机器自动定档 + 早停/SHAP 模板）
 
 ### Added
 - **`references/interpretation.md`：SHAP 解释的四步模板**（模型 → 快速 `pred_fun` → `kernelshap` → `shapviz`）。为什么加：skill 此前只到"评估指标 + 可视化"，没有任何模型解释内容；而 `kernelshap` 在 mlr3 图学习器上有一个不写就**跑不完**的坑——`predict_newdata()` 每次调用重建 Task，实测 40 次调用 **11.7 s**，直调底层 booster **0.13 s**（约 90 倍）。模板给出剥包装的取值路径（图学习器末端模型被包成 `list("wrapper")`，真身在 `attr(m[[1]], "model")`）、`bg_X` 决定 baseline、`m` 必须偶数、可加性校验与六条报错原文。用例 24 用真实训练出的图学习器验证取值路径与可加性（误差 < 1e-6）。
@@ -13,12 +13,15 @@
 - **用例 21 → 24**：新增「并行定档·plan_parallel 三档与默认线程」「早停·档案里的内部轮次与折日志」「模型解释·kernelshap 快速 pred_fun 与可加性」。文档里的分档公式、默认线程值、键名前缀、日志位置都是字面量，不钉就会随上游漂移。
 
 ### 验证
-- 本机（Windows / R 4.6.2 / mlr3 1.8.0 / mlr3learners 0.16.0）：`Rscript scripts/verify_examples.R` → 版本自洽 **v2.5.0** + **24/24 PASS**，退出码 0（合计 92 s）。
+- 本机（Windows / R 4.6.2 / mlr3 1.8.0 / mlr3learners 0.16.0）：`Rscript scripts/verify_examples.R` → 版本自洽 **v2.6.0** + **24/24 PASS**，退出码 0（同日多次实测 92–148 s，机器负载波动，用例与断言未变）。
 - `Rscript scripts/check_answer_api.R SKILL.md "references/*.md" ...` → **172 个唯一字典键，幻觉 0**。
 - `node scripts/run_evals.mjs --selftest` → 引擎自检 PASS（黄金 0 FAIL、违规 5/5）。
 - `Rscript scripts/list_example_deps.R` → hard 17 / opt 8（kernelshap、shapviz 新增为可选依赖，被 `requireNamespace()` 守卫），本机缺失 = 无。
 - 实测记录逐条：`availableCores() = 20` / `detectCores(logical = FALSE) = 14` / `ps_system_memory() percent = 56.9`；`rsmp("holdout")$iters = 1`、`rsmp("cv", folds = 5)$iters = 5`；`lrn("classif.xgboost")$param_set$values$nthread = 1`（ranger / lightgbm / catboost 同）；`kernelshap 0.9.1` 的 `m must be even`。
 - 未做的事：未把 SHAP 模板推广到 lightgbm / catboost 的具体取值路径（只写了"换底层模型那一步"）；未给 SHAP 的图做逐图读法表（交给 shapviz 手册）；`evals/outputs/eval-*.md` 与 `examples/replay/*` 保持原样——其中"外层按折并行时线程压 1"的写法在 `workers = 8` 的语境下仍然成立，不是错的，只是不再是唯一档位。
+
+### 版本
+- **版本号 2.5.0 → 2.6.0**（minor：新增 `references/interpretation.md`、新增 3 个用例 21 → 24、红线 5 与 `resampling.md` §9 的并行口径重写；无破坏性改动）。三处同步：`SKILL.md` frontmatter / README「当前发布版本」段 / 本 CHANGELOG 条目——由 `verify_examples.R` 开头的元数据自检把关（本轮实跑输出 `[OK] 版本自洽 v2.6.0`）。
 
 ## [2.5.0] — 2026-10-07 · 发布（可视化小节补齐：mlr3viz 点名 + 场景→图决策表 + 活体实跑）
 

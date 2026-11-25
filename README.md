@@ -199,12 +199,14 @@ Rscript scripts/check_answer_api.R examples/replay/skilled-eval-1.md examples/re
 
 ## 版本与更新历史
 
-**当前发布版本：v2.5.0**。版本号与逐版改动都在仓库里：
+**当前发布版本：v2.6.0**。版本号与逐版改动都在仓库里：
+
+**v2.6.0 新增什么**：并行从"外层并行就把线程压成 1"改为**按机器配置自动定档**（单折靠 `set_threads` 吃满机器、多折 `workers = 折数`、线程按物理核均分，附 `plan_parallel()` 与 mirai 后端坑）；新增 **SHAP 解释模板**（`kernelshap` + `shapviz`，实测快约 90 倍的 `pred_fun`、可加性校验）；早停补上**日志到底在哪**（档案折模型、`attributes()$evaluation_log`、带节点前缀的键名）。骨架回归同步 21 → **24 例**。
 
 | 在哪看 | 内容 |
 |---|---|
 | [`CHANGELOG.md`](CHANGELOG.md) | 逐版记录，**每版讲清"为什么改"**，不只是改动清单；未发布的改动堆在 `[Unreleased]` 段 |
-| [tags](https://github.com/zhjx19/ml-mlr3/tags) | 打 tag 即发版：`v2.5.0` ← `v2.4.0` ← `v2.3.0` ← `v2.2.0` ← `v2.1.0`；首屏 `version` 徽章读最新 tag（现为 `v2.5.0`） |
+| [tags](https://github.com/zhjx19/ml-mlr3/tags) | 打 tag 即发版：`v2.6.0` ← `v2.5.0` ← `v2.4.0` ← `v2.3.0` ← `v2.2.0` ← `v2.1.0`；首屏 `version` 徽章读最新 tag（现为 `v2.6.0`） |
 | `SKILL.md` frontmatter 的 `version:` | 给 runtime / 市场读的那一份 |
 
 ## 致谢

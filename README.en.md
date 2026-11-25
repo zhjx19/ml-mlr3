@@ -197,12 +197,14 @@ It probes every first argument of `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` in
 
 ## Version & changelog
 
-**Current released version: v2.5.0**. Version and per-release changes live in the repo:
+**Current released version: v2.6.0**. Version and per-release changes live in the repo:
+
+**What v2.6.0 adds**: parallelism moves from "if you parallelize over folds, pin learner threads to 1" to **tiering from the actual machine** (one fold → no `future`, use `set_threads()`; many folds → `workers = folds` and threads split across physical cores; includes `plan_parallel()` and the mirai-backend caveat); a new **SHAP template** (`kernelshap` + `shapviz`, with a measured ~90× faster `pred_fun` and an additivity check); and the missing "where do early-stopping logs live" answer (archive fold models, `attributes()$evaluation_log`, node-prefixed keys). Skeleton regression goes 21 → **24 cases**.
 
 | Where | What |
 |---|---|
 | [`CHANGELOG.md`](CHANGELOG.md) | version-by-version, each explaining **why** it changed, not just what; unreleased work accumulates under `[Unreleased]` |
-| [tags](https://github.com/zhjx19/ml-mlr3/tags) | tagging = releasing: `v2.5.0` ← `v2.4.0` ← `v2.3.0` ← `v2.2.0` ← `v2.1.0`; the hero `version` badge reads the latest tag (now `v2.5.0`) |
+| [tags](https://github.com/zhjx19/ml-mlr3/tags) | tagging = releasing: `v2.6.0` ← `v2.5.0` ← `v2.4.0` ← `v2.3.0` ← `v2.2.0` ← `v2.1.0`; the hero `version` badge reads the latest tag (now `v2.6.0`) |
 | `version:` in `SKILL.md` frontmatter | the copy that runtimes / marketplaces read |
 
 ## Acknowledgements
