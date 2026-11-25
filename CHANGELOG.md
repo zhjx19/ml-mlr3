@@ -23,6 +23,11 @@
 ### 版本
 - **版本号 2.5.0 → 2.6.0**（minor：新增 `references/interpretation.md`、新增 3 个用例 21 → 24、红线 5 与 `resampling.md` §9 的并行口径重写；无破坏性改动）。三处同步：`SKILL.md` frontmatter / README「当前发布版本」段 / 本 CHANGELOG 条目——由 `verify_examples.R` 开头的元数据自检把关（本轮实跑输出 `[OK] 版本自洽 v2.6.0`）。
 
+### 发布与本地部署同步
+- **tag `v2.6.0` 已打并推送**（annotated，指向 `da5c7f6` = CI run #19 验证过的那一版；三 job 全 success：verify-examples ubuntu / windows + evals-selftest）。守仓库纪律"三 job 全绿后才打"。
+- **本地部署无需同步**：其余 runtime 的 skills 目录（`.claude` / `.codex` / `.workbuddy` / `.zcode` / `.openclaw-autoclaw` 等）都是指向 `.config/opencode/skills/ml-mlr3` 的 Junction / SymbolicLink，源改一处即全部生效。
+- **本条目写在 tag 之后**，故 tag 指向的那一版 CHANGELOG 尚无此行，特此说明。
+
 ## [2.5.0] — 2026-10-07 · 发布（可视化小节补齐：mlr3viz 点名 + 场景→图决策表 + 活体实跑）
 
 ### Fixed
