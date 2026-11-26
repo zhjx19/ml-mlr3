@@ -82,7 +82,7 @@ split the data, compare a few algorithms, then evaluate.
 | Test set stays sealed | During development, no predict / summary / plot / tuning on `split$test`; final evaluation **must ask the user first** and is run once after permission |
 | R6 reference semantics | Deep-copy with `$clone(deep = TRUE)` before modifying a Task/Learner; never pollute the original |
 | No data leakage | All preprocessing (imputation / encoding / scaling / PCA / SMOTE / feature selection) goes inside a PipeOp graph, fitted within resampling |
-| Size parallelism to the machine | Measures one fit first (`state$train_time`): ≲0.1 s → stay sequential, ≳1 s → parallelize; `workers = folds`, threads default to 1 and split across physical cores only for long fits |
+| Size parallelism to the machine | Measures one fit first (`state$train_time`): ≲0.1 s → stay sequential, ≳1 s → parallelize; `workers = folds`, threads default to 1 and split across physical cores only for long fits; with 1 thread per fold use `multicore` on Linux and `multisession` on Windows, and always `multisession` once folds get multiple threads |
 | Nested resampling purpose | Unbiased comparison only; real tuning goes through `auto_tuner$train()` |
 
 It will not do: deep learning, non-tabular data, tidymodels workflows (it points you to that ecosystem instead), or lightweight exploratory grouped modeling (one `dplyr` `nest` + `map` is enough — no mlr3 needed).
@@ -197,7 +197,9 @@ It probes every first argument of `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` in
 
 ## Version & changelog
 
-**Current released version: v2.6.1**. Version and per-release changes live in the repo:
+**Current released version: v2.7.0**. Version and per-release changes live in the repo:
+
+**What v2.7.0 adds**: an OS-aware parallel backend — Windows has only `multisession`; Linux/macOS can use `multicore` (fork, ~1/3 of multisession's startup overhead, though short fits still belong sequential). `plan_parallel()` now returns `mode`, backed by a reproducible Linux benchmark workflow.
 
 **What v2.6.1 fixes**: parallelism is tiered by **measured fit time** rather than "one fold → max threads" — ≲0.1 s stays sequential, ≳1 s is worth parallelizing, and learner threads default to 1 (LightGBM gets 9.4× slower with threads on small data; sub-100 ms fits run 1.5–2.6× slower with `future`). Also corrects a false claim about `validate =` in the `lrn()` constructor.
 
@@ -206,7 +208,7 @@ It probes every first argument of `lrn()/po()/msr()/rsmp()/tnr()/tsk()/ppl()` in
 | Where | What |
 |---|---|
 | [`CHANGELOG.md`](CHANGELOG.md) | version-by-version, each explaining **why** it changed, not just what; unreleased work accumulates under `[Unreleased]` |
-| [tags](https://github.com/zhjx19/ml-mlr3/tags) | tagging = releasing: `v2.6.1` ← `v2.6.0` ← `v2.5.0` ← `v2.4.0` ← `v2.3.0` ← `v2.2.0` ← `v2.1.0`; the hero `version` badge reads the latest tag (now `v2.6.1`) |
+| [tags](https://github.com/zhjx19/ml-mlr3/tags) | tagging = releasing: `v2.7.0` ← `v2.6.1` ← `v2.6.0` ← `v2.5.0` ← `v2.4.0` ← `v2.3.0` ← `v2.2.0` ← `v2.1.0`; the hero `version` badge reads the latest tag (now `v2.7.0`) |
 | `version:` in `SKILL.md` frontmatter | the copy that runtimes / marketplaces read |
 
 ## Acknowledgements

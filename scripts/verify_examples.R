@@ -785,40 +785,46 @@ results = c(
   ## 分档公式、默认线程值、折数语义都是正文的字面量，任何一条漂移都会让文档教错档位。
   run_case("并行定档·plan_parallel 按拟合耗时定档", {
     plan_parallel = \(iters, fit_secs = NA_real_, cores = future::availableCores(),
-      phys = parallel::detectCores(logical = FALSE), mem = NULL, task_bytes = 0) {
+      phys = parallel::detectCores(logical = FALSE), mem = NULL, task_bytes = 0,
+      fork_ok = future::supportsMulticore()) {
       phys = if (is.na(phys)) cores else min(phys, cores)
       mem_cap = if (!is.null(mem) && task_bytes > 0)
         max(1L, floor(mem$avail * 0.5 / task_bytes)) else Inf
       slow = isTRUE(fit_secs >= 1)                      # 单次拟合 >=1 s 才考虑加线程
       if (iters <= 1L) {
-        return(list(workers = 1L,
+        return(list(workers = 1L, mode = "sequential",
           thread = if (slow) as.integer(max(1L, phys - 1L)) else 1L))
       }
       w = as.integer(max(1L, min(iters, cores - 1L, mem_cap)))
       th = if (!slow) 1L else if (w == 1L) as.integer(max(1L, phys - 1L)) else
         as.integer(max(1L, phys %/% w))
-      list(workers = w, thread = th)
+      mode = if (w <= 1L) "sequential" else if (th == 1L && fork_ok) "multicore" else "multisession"
+      list(workers = w, thread = th, mode = mode)
     }
 
+    # 0) 平台探针：Windows 没有 fork；Linux/macOS 才可能为 TRUE
+    stopifnot(is.logical(future::supportsMulticore()))
     # 1) 没量过拟合耗时 -> 保守 1 线程；单折 + 长拟合才吃满核
-    p1 = plan_parallel(1L, cores = 20, phys = 14)
-    stopifnot(identical(p1, list(workers = 1L, thread = 1L)))
-    p1_slow = plan_parallel(1L, fit_secs = 3, cores = 20, phys = 14)
-    stopifnot(identical(p1_slow, list(workers = 1L, thread = 13L)))
-    # 2) 多折 + 短拟合：workers = 折数，线程 1（中性档）
-    p5 = plan_parallel(5L, cores = 20, phys = 14)
-    stopifnot(identical(p5, list(workers = 5L, thread = 1L)))
-    # 3) 多折 + 长拟合且折数 < 物理核：线程按物理核均分
-    p5_slow = plan_parallel(5L, fit_secs = 3, cores = 20, phys = 14)
-    stopifnot(identical(p5_slow, list(workers = 5L, thread = 2L)))      # 5 x 2 = 10 <= 14
-    p_small = plan_parallel(4L, fit_secs = 3, cores = 8, phys = 4)
-    stopifnot(p_small$workers == 4L, p_small$thread == 1L)             # 4 x 1 <= 4
+    p1 = plan_parallel(1L, fork_ok = FALSE)
+    stopifnot(identical(p1, list(workers = 1L, mode = "sequential", thread = 1L)))
+    p1_slow = plan_parallel(1L, fit_secs = 3, cores = 20, phys = 14, fork_ok = FALSE)
+    stopifnot(p1_slow$workers == 1L, p1_slow$thread == 13L, p1_slow$mode == "sequential")
+    # 2) 多折 + 短拟合：workers = 折数，线程 1；有 fork 用 multicore，无 fork 用 multisession
+    p5 = plan_parallel(5L, cores = 20, phys = 14, fork_ok = FALSE)
+    stopifnot(identical(p5, list(workers = 5L, thread = 1L, mode = "multisession")))
+    p5_fork = plan_parallel(5L, cores = 20, phys = 14, fork_ok = TRUE)
+    stopifnot(identical(p5_fork, list(workers = 5L, thread = 1L, mode = "multicore")))
+    # 3) 多折 + 长拟合且折数 < 物理核：线程均分；此时必须退回 multisession（fork + 线程不安全）
+    p5_slow = plan_parallel(5L, fit_secs = 3, cores = 20, phys = 14, fork_ok = TRUE)
+    stopifnot(identical(p5_slow, list(workers = 5L, thread = 2L, mode = "multisession")))
+    p_small = plan_parallel(4L, fit_secs = 3, cores = 8, phys = 4, fork_ok = TRUE)
+    stopifnot(p_small$workers == 4L, p_small$thread == 1L, p_small$mode == "multicore")
     # 4) 内存不够回单进程，线程按 phys - 1 给
     p_mem = plan_parallel(5L, fit_secs = 3, cores = 20, phys = 14,
-      mem = list(avail = 1e9), task_bytes = 4e8)                       # 0.5 GB / 0.4 GB -> 1 档
-    stopifnot(p_mem$workers == 1L, p_mem$thread == 13L)
+      mem = list(avail = 1e9), task_bytes = 4e8, fork_ok = TRUE)       # 0.5 GB / 0.4 GB -> 1 档
+    stopifnot(p_mem$workers == 1L, p_mem$thread == 13L, p_mem$mode == "sequential")
     p_one = plan_parallel(5L, cores = 1, phys = 1)                     # 单核机器不越界
-    stopifnot(p_one$workers == 1L, p_one$thread == 1L)
+    stopifnot(p_one$workers == 1L, p_one$thread == 1L, p_one$mode == "sequential")
     stopifnot(plan_parallel(5L, fit_secs = 3, cores = 4, phys = NA)$thread == 1L)  # phys=NA 退回 cores
 
     # 5) 拟合耗时探针：state$train_time 是秒（正文用它定档）

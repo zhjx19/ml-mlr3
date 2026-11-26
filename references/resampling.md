@@ -173,29 +173,45 @@ plan_parallel = \(iters, fit_secs = NA_real_, cores = future::availableCores(),
     max(1L, floor(mem$avail * 0.5 / task_bytes)) else Inf
   slow = isTRUE(fit_secs >= 1)                      # 单次拟合 ≥1 s 才考虑加线程
   if (iters <= 1L) {
-    return(list(workers = 1L,
+    return(list(workers = 1L, mode = "sequential",
       thread = if (slow) as.integer(max(1L, phys - 1L)) else 1L))
   }
   w = as.integer(max(1L, min(iters, cores - 1L, mem_cap)))
   th = if (!slow) 1L else if (w == 1L) as.integer(max(1L, phys - 1L)) else
     as.integer(max(1L, phys %/% w))
-  list(workers = w, thread = th)
+  # 每折 1 线程时用 fork（Linux/macOS）省掉序列化；要给多线程就退回 multisession
+  mode = if (w <= 1L) "sequential" else if (th == 1L && fork_ok) "multicore" else "multisession"
+  list(workers = w, thread = th, mode = mode)
 }
 
 p = plan_parallel(rsmp$iters, fit_secs = learner$state$train_time,
                   mem = ps::ps_system_memory(),
                   task_bytes = as.numeric(object.size(train_task)))
-if (p$workers > 1L) {
-  future::plan("multisession", workers = p$workers)
-} else {
+if (p$mode == "sequential") {
   future::plan("sequential")        # 单进程档：线程按 p$thread 定
+} else {
+  future::plan(p$mode, workers = p$workers)
 }
 set_threads(learner, n = p$thread)
 # ... resample() / benchmark() / auto_tuner() ...
 future::plan("sequential")     # 跑完复原，别把档位留给后面的代码
 ```
 
-Windows 用 `multisession`（`multicore` 在 Windows 不可用）。`set_threads()` 对没有线程参数的学习器（rpart / lm 等）是空操作，同一个规划器可以无脑套在所有学习器上；GraphLearner 会把线程数传到图内每个学习器。
+`set_threads()` 对没有线程参数的学习器（rpart / lm 等）是空操作，同一个规划器可以无脑套在所有学习器上；GraphLearner 会把线程数传到图内每个学习器。
+
+### 9.5 Windows 与 Linux 的后端不同
+
+- **Windows**：只有 `multisession`（多进程）；`multicore` 不可用（`future::supportsMulticore()` 为 `FALSE`）。
+- **Linux**：`multicore`（fork）可用，Task 不序列化、启动开销更低；macOS 也能 fork，但保守起见用 `multisession`。
+- **实测**（4 核 ubuntu runner，3 worker；`scripts/bench_parallel_linux.R`）：
+
+| 案例 | 串行 | multisession | multicore |
+|---|---|---|---|
+| 短拟合 rpart，5 折 × 10 次 | **1.31 s** | 3.30 s | 2.07 s |
+| 长拟合 ranger 图，5 折 × 6 次 | 16.49 s | **10.98 s** | 11.74 s |
+
+- 结论：multicore 的并行开销约为 multisession 的 **1/3**（短拟合多花 0.8 s vs 2.0 s），但**短拟合仍不如串行**；长拟合两者相当。所以——**每折 1 线程且 `supportsMulticore()` 为真 → `multicore`；要给每折多线程 → `multisession`**（fork 与 OpenMP 原生线程混用有死锁风险，fork 也不能嵌套）。
+- `supportsMulticore()` 已经包含 RStudio / `parallelly.fork.enable` 的判断，直接调它，别自己写平台判断。
 
 ### 9.4 线程给几个：按学习器实测
 
@@ -220,7 +236,7 @@ Windows 用 `multisession`（`multicore` 在 Windows 不可用）。`set_threads
 
 `set_threads()` 的形参是 `(x, n = availableCores(), ...)`——写成 `set_threads(learner, nthreads = 1)` 不报错，错名被 `...` 吞掉、`n` 落到默认值，线程反而被设成**满核**（20 核机器实测 `num.threads` = 20）。线程参数名不确定就现探 `learner$param_set$ids(tags = "threads")`，映射交给 `set_threads()` 做。
 
-### 9.5 另一个后端：mirai
+### 9.6 另一个后端：mirai
 
 mlr3 1.8.0 的 `future_map()` 开头会先看 `mirai`：**只要 `mirai` 已加载且 daemons 已设**，就走 mirai，`future::plan()` 完全不生效（`getOption("mlr3.mirai_parallelization", "mlr3_parallelization")` 指定 daemons 名）。所以"我明明 plan 了 5 个 worker 怎么没变快"先查这一条：
 

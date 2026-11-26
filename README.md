@@ -83,7 +83,7 @@ ln -s "$(pwd)/ml-mlr3" <你的-agent-skills-目录>/ml-mlr3
 | 测试集绝对隔离 | 开发期禁止对 `split$test` 做预测/汇总/可视化/调参；最终评估**必须先询问用户**，获许可后只评估一次 |
 | R6 引用语义 | 修改 Task/Learner 前必须 `$clone(deep = TRUE)`，不污染原对象 |
 | 防数据泄露 | 一切预处理（插补/编码/标准化/PCA/SMOTE/特征选择）封装进 PipeOp 图，在重抽样内部拟合 |
-| 并行按机器定档 | 先量单次拟合耗时（`state$train_time`）：≲0.1 s 不并行、≳1 s 才开；多折 `workers = 折数`，线程默认 1，仅长拟合按物理核均分 |
+| 并行按机器定档 | 先量单次拟合耗时（`state$train_time`）：≲0.1 s 不并行、≳1 s 才开；多折 `workers = 折数`，线程默认 1，仅长拟合按物理核均分；每折 1 线程时 Linux 用 `multicore`、Windows 用 `multisession`，要每折多线程一律 `multisession` |
 | 嵌套重抽样用途 | 只做无偏比较；真正调参走 `auto_tuner$train()` |
 
 不会做：深度学习、非表格数据、tidymodels 工作流（指引用户改用对应生态技能）、轻量探索性分组建模（一个 dplyr `nest` + `map` 就够，不必上 mlr3）。
@@ -199,7 +199,9 @@ Rscript scripts/check_answer_api.R examples/replay/skilled-eval-1.md examples/re
 
 ## 版本与更新历史
 
-**当前发布版本：v2.6.1**。版本号与逐版改动都在仓库里：
+**当前发布版本：v2.7.0**。版本号与逐版改动都在仓库里：
+
+**v2.7.0 补什么**：并行后端按 OS 分支——Windows 只有 `multisession`，Linux/macOS 可用 `multicore`（fork，启动开销约为 multisession 的 1/3，但短拟合仍以串行为准）；`plan_parallel()` 现在返回 `mode` 并附一条可复现的 Linux 实测工作流。
 
 **v2.6.1 修正什么**：并行定档不再"单折就吃满线程"，改为**先量单次拟合耗时**——≲0.1 s 不并行、≳1 s 才开，线程默认 1（实测 LightGBM 小数据加线程慢 9.4 倍、毫秒级拟合开 future 慢 1.5–2.6 倍）；并修正一条 validate 写法的失实说明。
 
@@ -208,7 +210,7 @@ Rscript scripts/check_answer_api.R examples/replay/skilled-eval-1.md examples/re
 | 在哪看 | 内容 |
 |---|---|
 | [`CHANGELOG.md`](CHANGELOG.md) | 逐版记录，**每版讲清"为什么改"**，不只是改动清单；未发布的改动堆在 `[Unreleased]` 段 |
-| [tags](https://github.com/zhjx19/ml-mlr3/tags) | 打 tag 即发版：`v2.6.1` ← `v2.6.0` ← `v2.5.0` ← `v2.4.0` ← `v2.3.0` ← `v2.2.0` ← `v2.1.0`；首屏 `version` 徽章读最新 tag（现为 `v2.6.1`） |
+| [tags](https://github.com/zhjx19/ml-mlr3/tags) | 打 tag 即发版：`v2.7.0` ← `v2.6.1` ← `v2.6.0` ← `v2.5.0` ← `v2.4.0` ← `v2.3.0` ← `v2.2.0` ← `v2.1.0`；首屏 `version` 徽章读最新 tag（现为 `v2.7.0`） |
 | `SKILL.md` frontmatter 的 `version:` | 给 runtime / 市场读的那一份 |
 
 ## 致谢

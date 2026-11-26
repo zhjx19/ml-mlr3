@@ -2,6 +2,24 @@
 
 本仓库遵循「发版讲清为什么改」的迭代纪律：每个版本记录动机，不只是改动清单。
 
+## [2.7.0] — 2026-11-26 · Linux 并行后端（multicore vs multisession）补齐
+
+### Added
+- **`plan_parallel()` 返回 `mode`**：`sequential` / `multicore` / `multisession`。规则：每折 1 线程且 `future::supportsMulticore()` 为真 → `multicore`（fork，不序列化 Task）；要给每折多线程 → `multisession`（fork 与 OpenMP 原生线程混用有死锁风险，且 fork 不能嵌套）。`supportsMulticore()` 本身已包含 RStudio / `parallelly.fork.enable` 判断。
+- **`scripts/bench_parallel_linux.R` + `.github/workflows/linux-parallel-bench.yml`**：在 ubuntu runner 上实跑两种后端，结果以公开 `::notice::` 注解输出。为什么加：此前的所有数字都来自 Windows（只有 multisession），Linux 的 fork 后端不是同一套开销结构，不能靠推断写进文档。
+
+### 实测（4 核 ubuntu runner，3 worker）
+| 案例 | 串行 | multisession | multicore |
+|---|---|---|---|
+| 短拟合 rpart，5 折 × 10 次 | **1.31 s** | 3.30 s | 2.07 s |
+| 长拟合 ranger 图，5 折 × 6 次 | 16.49 s | **10.98 s** | 11.74 s |
+
+结论：multicore 的并行开销约为 multisession 的 1/3，但**短拟合仍不如串行**；长拟合两者相当。所以"按拟合耗时定档"的规则跨平台不变，只有"选哪个后端"按 OS/线程数分。
+
+### Changed
+- `SKILL.md` 红线 5 与 `references/resampling.md` §9.5 补"Windows 与 Linux 的后端不同"（含上表）；`verify_examples.R` 用例 22 增加 `fork_ok` 两个分支的断言（Windows 上也能测多核分支的判定逻辑）。
+- 书稿同步：ch02 并行小节与 ch12 附录补 Linux 口径（multicore 的收益、何时退回 multisession）。
+
 ## [2.6.1] — 2026-11-26 · 并行口径按实测收紧（先量拟合耗时）
 
 ### Changed

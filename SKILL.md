@@ -14,7 +14,7 @@ description: >-
   不要用于：深度学习、非表格数据（图像/文本/NLP）；tidymodels 工作流（改用 tidymodels 生态技能）；
   轻量探索性分组建模（dplyr nest + map 即可）；数据清洗本身。
 license: Apache-2.0
-version: 2.6.1
+version: 2.7.0
 ---
 
 # mlr3verse 表格数据机器学习建模
@@ -185,33 +185,38 @@ learner$train(train_task); fit_secs = learner$state$train_time  # 单次拟合�
 
 ```r
 plan_parallel = \(iters, fit_secs = NA_real_, cores = future::availableCores(),
-  phys = parallel::detectCores(logical = FALSE), mem = NULL, task_bytes = 0) {
+  phys = parallel::detectCores(logical = FALSE), mem = NULL, task_bytes = 0,
+  fork_ok = future::supportsMulticore()) {
   phys = if (is.na(phys)) cores else min(phys, cores)
   mem_cap = if (!is.null(mem) && task_bytes > 0)
     max(1L, floor(mem$avail * 0.5 / task_bytes)) else Inf
   slow = isTRUE(fit_secs >= 1)                      # 单次拟合 ≥1 s 才考虑加线程
   if (iters <= 1L) {
-    return(list(workers = 1L,
+    return(list(workers = 1L, mode = "sequential",
       thread = if (slow) as.integer(max(1L, phys - 1L)) else 1L))
   }
   w = as.integer(max(1L, min(iters, cores - 1L, mem_cap)))
   th = if (!slow) 1L else if (w == 1L) as.integer(max(1L, phys - 1L)) else
     as.integer(max(1L, phys %/% w))
-  list(workers = w, thread = th)
+  # 每折 1 线程时用 fork（Linux/macOS）省掉序列化；要给多线程就退回 multisession
+  mode = if (w <= 1L) "sequential" else if (th == 1L && fork_ok) "multicore" else "multisession"
+  list(workers = w, thread = th, mode = mode)
 }
 
 p = plan_parallel(rsmp$iters, fit_secs = learner$state$train_time,
                   mem = ps::ps_system_memory(),
                   task_bytes = as.numeric(object.size(train_task)))
-if (p$workers > 1L) {
-  future::plan("multisession", workers = p$workers)
-} else {
+if (p$mode == "sequential") {
   future::plan("sequential")        # 单进程档：线程按 p$thread 定
+} else {
+  future::plan(p$mode, workers = p$workers)   # 档位写进结果：p$mode / p$workers / p$thread
 }
 set_threads(learner, n = p$thread)
 # ... resample() / benchmark() / auto_tuner() ...
 future::plan("sequential")     # 跑完复原，别把档位留给后面的代码
 ```
+
+**Windows 与 Linux 的后端不同**：Windows 只有 `multisession`；Linux/macOS 还可 `multicore`（fork，不序列化 Task，启动开销更低）。4 核 ubuntu runner 实测：短拟合（rpart 10 次）串行 1.31 s / multicore 2.07 s / multisession 3.30 s——multicore 的并行开销约为 multisession 的 1/3，但**短拟合仍不如串行**；长拟合（ranger 图 6 次）串行 16.49 s / multisession 10.98 s / multicore 11.74 s，两者相当。所以选择规则是：**每折 1 线程且 `supportsMulticore()` 为真 → multicore；要给每折多线程 → multisession**（fork 与 OpenMP 原生线程混用有死锁风险，且 fork 不能嵌套）。macOS 保守用 `multisession`。
 
 三个线程/后端坑（实测）：① `set_threads()` 形参是 `(x, n, ...)`，写成 `set_threads(learner, nthreads = 1)` 不报错——错名被 `...` 吞掉、`n` 落回默认 `availableCores()`，线程反而拉满；② 别为了"用满核"乱加线程：LightGBM 小数据加线程是负收益，正确口径是"总线程 ≤ 物理核"且"只在长拟合上分配"；③ 环境里若已设 `mirai` daemons，mlr3 会**绕过 future** 直接走 mirai（`getOption("mlr3.mirai_parallelization")`），此时 `future::plan()` 不生效——先确认走哪条道，别两套都开着。
 
