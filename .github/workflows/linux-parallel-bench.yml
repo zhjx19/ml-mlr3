@@ -1,0 +1,41 @@
+name: linux-parallel-bench
+
+# 为什么单独一条工作流：并行策略在 Windows 与 Linux 上不是同一套——Windows 只有
+# multisession，Linux 还能用 fork 式的 multicore。这条工作流按需（或改脚本时）
+# 在 ubuntu 上实跑两种后端，把耗时写成公开的 ::notice:: 注解，
+# 供 SKILL.md / resampling.md 的 Linux 口径引用。不进每次 push 的主门禁。
+
+on:
+  push:
+    paths:
+      - "scripts/bench_parallel_linux.R"
+      - ".github/workflows/linux-parallel-bench.yml"
+  workflow_dispatch:
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: release
+          use-public-rspm: true
+
+      - name: Install R packages (binaries from RSPM)
+        shell: bash
+        run: |
+          Rscript -e 'install.packages(c("mlr3verse","mlr3data","data.table","future","ps","ranger"), repos = "https://packagemanager.posit.co/cran/__linux__/jammy/latest")'
+
+      - name: Run Linux parallel benchmark
+        shell: bash
+        run: |
+          set +o pipefail
+          Rscript scripts/bench_parallel_linux.R > _bench.log 2>&1 || true
+          cat _bench.log
+          grep -E "^::notice::" _bench.log || {
+            echo "::error::benchmark produced no ::notice:: lines (R session died?)"
+            tail -20 _bench.log | sed 's/^/::error::/'
+          }
