@@ -20,6 +20,13 @@
 - `SKILL.md` 红线 5 与 `references/resampling.md` §9.5 补"Windows 与 Linux 的后端不同"（含上表）；`verify_examples.R` 用例 22 增加 `fork_ok` 两个分支的断言（Windows 上也能测多核分支的判定逻辑）。
 - 书稿同步：ch02 并行小节与 ch12 附录补 Linux 口径（multicore 的收益、何时退回 multisession）。
 
+### 发布与本地部署同步
+- **tag `v2.7.0` 已打并推送**（annotated，指向 `c20936b`；`gates` 徽章对 `main` 显示 **passing**）。
+- 本轮网络状况：HTTPS 代理时通时断，`api.github.com` 匿名配额用尽（`403 rate limit exceeded`），拉取 CI 状态改用仓库的 **gates 徽章**（徽章端点不受 API 配额限制）；代码与 tag 推送走 SSH。
+- Linux 实测工作流：https://github.com/zhjx19/ml-mlr3/actions/runs/45740067552（注解 `LINUX_BENCH` / `A_short_rpart` / `B_long_ranger`）。
+- 本地部署无需同步（其余 runtime 目录均为指向源的链接）。
+- **本条目写在 tag 之后**，故 tag 指向的那一版 CHANGELOG 尚无此行。
+
 ## [2.6.1] — 2026-11-26 · 并行口径按实测收紧（先量拟合耗时）
 
 ### Changed
