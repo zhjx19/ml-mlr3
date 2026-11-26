@@ -17,6 +17,12 @@
 ### 配套的书稿改动（不在本仓库）
 - ch02 补并行总规则；ch04 修注释；ch08 / ch10 加 `plan()`（1.5 倍 / 2.05 倍）；ch12 附录按实测重写；ch13 / ch14 注释按实测精确化；ch05 / 07 / 09 / 15 / 16 不动（实测并行中性或更慢）。
 
+### 发布与本地部署同步
+- **tag `v2.6.1` 已打并推送**（annotated，指向 `fe59f59` = CI run #21 验证过的那一版；verify-examples ubuntu / windows + evals-selftest 三 job 全 success）。
+- 本轮推送时本机 HTTPS 代理（`127.0.0.1:9567`）不可用（`Recv failure: Connection was reset`），改用 SSH 通道推送（`git@github.com:zhjx19/ml-mlr3.git`），远端 ref 已用 `ls-remote` 核对。
+- 本地部署无需同步：其余 runtime 的 skills 目录都是指向 `.config/opencode/skills/ml-mlr3` 的链接。
+- **本条目写在 tag 之后**，故 tag 指向的那一版 CHANGELOG 尚无此行。
+
 ## [2.6.0] — 2026-11-26 · 发布（并行按机器自动定档 + 早停/SHAP 模板）
 
 ### Added
